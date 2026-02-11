@@ -1,5 +1,8 @@
 <template>
   <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
+  <div class="mobile-menu-toggle">
+    +
+  </div> 
 
   <div class="preHead">  
     <div class="stdBtn" @click="prevMonth">←</div>
@@ -273,8 +276,40 @@ h1::after {
   color: #e07b7b;
 }
 
+.mobile-menu-toggle{
+  display: none
+}
+
 /* Адаптивность */
-@media (max-width: 600px) {
+@media (max-width: 900px) {
+
+  .mobile-menu-toggle {
+  display: flex;
+  position: fixed;
+  top: 35px;
+  right: 7vw;
+  z-index: 101;
+  width: 65px;
+  height: 65px;
+  border-radius: 50%; 
+
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  color: white;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .mobile-menu-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+
   h1 {
     font-size: 1.875rem; /* ~30px */
     margin-top: 1.5rem;
