@@ -1,0 +1,186 @@
+body {
+  margin: 0;
+  padding: 5vw clamp(3px, 10vw, 100px);
+  box-sizing: border-box;
+}
+
+.day-cell,
+.stdBtn,
+.CalendBtn {
+  touch-action: manipulation;
+}
+
+.day-cell:active {
+  background-color: #e6f7ff;
+  transform: scale(0.97);
+  transition: none;
+}
+
+/* Заголовок h1 — элегантный и центрированный */
+h1 {
+  color: #2c3e50;
+  text-align: center;
+  font-size: 2.5rem; /* ~40px */
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  margin: 2rem 0 1.5rem;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  position: relative;
+}
+
+/* Обычные абзацы — чистые, воздушные, с хорошим ритмом */
+p {
+  color: #2c3e50;
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.6;
+  font-weight: 400;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  margin: 0 0 1.5rem; /* отступ снизу для ритма */
+  text-align: center;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+p:hover {
+  opacity: 1;
+}
+
+/* Декоративная подчёркивающая линия (опционально) */
+h1::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  margin: 16px auto 0;
+  border-radius: 2px;
+}
+
+/* Основной текст — читаемый и мягкий */
+.main-text {
+  color: #2c3e50;
+  font-size: 1.125rem; /* ~18px */
+  line-height: 1.6;
+  text-align: center;
+  max-width: 700px;
+  margin: 0 auto 2rem;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-weight: 400;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.main-text:hover {
+  opacity: 1;
+}
+
+.form {
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 36px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Декоративный акцент */
+.form::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+}
+
+.form h2 {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 32px;
+  letter-spacing: -0.5px;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #34495e;
+  letter-spacing: 0.3px;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #e0e6ed;
+  border-radius: 10px;
+  font-size: 16px;
+  color: #2c3e50;
+  background-color: #fafbfd;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #3498db;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.submit-btn:hover {
+  background: linear-gradient(135deg, #2980b9, #2573a7);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
+}
+
+.submit-btn:active {
+  transform: translateY(0);
+}
+
+/* Адаптивность */
+@media (max-width: 600px) {
+  .form {
+    margin: 24px;
+    padding: 28px;
+  }
+
+  .form h2 {
+    font-size: 24px;
+  }
+}
