@@ -1,11 +1,11 @@
 // src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
-import SuccessView from '../views/SuccessView.vue'
-import HomePage from '@/views/HomePage.vue'
+import CheckNotes from '@/views/NotesModalView.vue'
+import Calendar from '@/views/Calendar.vue'
 
 const routes = [
-  { path: '/success', component: SuccessView },
-  { path: '/', component: HomePage }
+  { path: '/test', component: CheckNotes },
+  { path: '/', component: Calendar }
 ]
 
 const router = createRouter({

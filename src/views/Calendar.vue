@@ -1,12 +1,10 @@
 <template>
   <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
-  <div class="mobile-menu-toggle">
-    +
-  </div> 
+  <div class="mobile-menu-toggle" @click="openNotesForDay(new Date())">+</div>
 
-  <div class="preHead">  
+  <div class="preHead">
     <div class="stdBtn" @click="prevMonth">←</div>
-    <div class="CalendBtn" @click="selectMonth">{{ thisMonth }}</div>
+    <div class="CalendBtn" @click="openMonthPicker">{{ thisMonth }}</div>
     <div class="stdBtn" @click="nextMonth">→</div>
   </div>
 
@@ -15,8 +13,8 @@
   </div>
 
   <div class="CalendarBody">
-    <div 
-      v-for="(day, index) in days" 
+    <div
+      v-for="(day, index) in days"
       :key="index"
       class="day-cell"
       :class="{
@@ -24,95 +22,134 @@
         'today': day.isToday,
         'weekend': day.isWeekend
       }"
+      @click="openNotesForDay(day.fullDate)"
     >
       {{ day.date }}
     </div>
   </div>
+
+  <!-- Модалка выбора месяца -->
+  <MonthPickerModal
+    v-model="isMonthPickerOpen"
+    :current-date="currentDate"
+    @select="onMonthSelect"
+  />
+
+  <!-- Модальное окно заметок -->
+  <NotesModalView
+    v-model="isNotesOpen"
+    :date="selectedDate"
+    @create="handleCreate"
+    @edit="handleEdit"
+  />
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import NotesModalView from './NotesModalView.vue'
+import MonthPickerModal from './MonthPickerModal.vue'
 
-import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
+const { t } = useI18n()
 
-// Текущая дата (реактивная)
-const currentDate = ref(new Date());
+// === Состояние модалки ===
+const isNotesOpen = ref(false)
+const isMonthPickerOpen = ref(false) 
+const selectedDate = ref(new Date())
 
-// Ключи месяцев и дней — как в вашем JSON
-const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+// === Календарь ===
+const currentDate = ref(new Date())
+const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
-// Название текущего месяца (локализованное)
 const thisMonth = computed(() => {
-  const monthIndex = currentDate.value.getMonth();
-  return t(`Calendar.months.${monthKeys[monthIndex]}`);
-});
+  const monthIndex = currentDate.value.getMonth()
+  return t(`Calendar.months.${monthKeys[monthIndex]}`)
+})
 
-// Локализованные названия дней недели (начинаются с понедельника)
 const nameDays = computed(() => {
-  return dayKeys.map(key => t(`Calendar.days.${key}`));
-});
+  return dayKeys.map(key => t(`Calendar.days.${key}`))
+})
 
-// Генерация дней календаря
+// Генерация дней с полной датой
 const days = computed(() => {
-  const now = new Date();
-  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const now = new Date()
+  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
 
-  const year = currentDate.value.getFullYear();
-  const month = currentDate.value.getMonth();
+  const year = currentDate.value.getFullYear()
+  const month = currentDate.value.getMonth()
 
-  // Первый день месяца (воскресенье = 0)
-  const firstDay = new Date(year, month, 1).getDay();
-  // Сдвигаем на понедельник: воскресенье → 6, остальные -1
-  const startOffset = firstDay === 0 ? -6 : 1 - firstDay; // дата первого отображаемого дня
+  const firstDay = new Date(year, month, 1).getDay()
+  const startOffset = firstDay === 0 ? -6 : 1 - firstDay
 
-  const result = [];
-  for (let i = 0; i < 42; i++) { // всегда 6 недель × 7 дней
-    const date = new Date(year, month, startOffset + i);
-    const isCurrentMonth = date.getMonth() === month;
-    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    
-    const dayOfWeek = i % 7; // mon=0, ..., sun=6 (потому что startOffset выровнен под понедельник)
+  const result = []
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(year, month, startOffset + i)
+    const isCurrentMonth = date.getMonth() === month
+    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+    const dayOfWeek = i % 7
 
     result.push({
       date: date.getDate(),
       isOtherMonth: !isCurrentMonth,
       isToday: dayKey === todayKey,
-      isWeekend: dayOfWeek === 5 || dayOfWeek === 6 // sat=5, sun=6
-    });
+      isWeekend: dayOfWeek === 5 || dayOfWeek === 6,
+      fullDate: date // ← сохраняем полную дату!
+    })
   }
+  return result
+})
 
-  return result;
-});
+// === Обработка клика по дню ===
+const openNotesForDay = (date) => {
+  if (!date) return
+  // Не открываем, если это "другой месяц" — опционально
+  // if (date.getMonth() !== currentDate.value.getMonth()) return
 
-// Функции навигации
+  selectedDate.value = new Date(date) // важно: копия, чтобы не мутировать
+  isNotesOpen.value = true
+}
+
+// === Навигация ===
 const prevMonth = () => {
-  const newDate = new Date(currentDate.value);
-  newDate.setMonth(newDate.getMonth() - 1);
-  currentDate.value = newDate;
-};
+  const newDate = new Date(currentDate.value)
+  newDate.setMonth(newDate.getMonth() - 1)
+  currentDate.value = newDate
+}
 
 const nextMonth = () => {
-  const newDate = new Date(currentDate.value);
-  newDate.setMonth(newDate.getMonth() + 1);
-  currentDate.value = newDate;
-};
+  const newDate = new Date(currentDate.value)
+  newDate.setMonth(newDate.getMonth() + 1)
+  currentDate.value = newDate
+}
 
-// Заглушка для selectMonth (можно реализовать выбор месяца позже)
-const selectMonth = () => {
-  // Например, открыть модальное окно выбора месяца
-  console.log('Select month clicked');
-};
+const openMonthPicker = () => {
+  isMonthPickerOpen.value = true
+}
 
-// Переключение на сегодняшний день
+const onMonthSelect = (newDate) => {
+  currentDate.value = newDate
+}
+
 const onToday = () => {
-  currentDate.value = new Date(); // сбрасываем на текущую дату
-};
+  currentDate.value = new Date()
+}
+
+// === Обработчики событий из модалки ===
+const handleCreateNote = (note) => {
+  console.log('Создать заметку:', note)
+  // Здесь можно вызвать API или обновить данные
+  isNotesOpen.value = false
+}
+
+const handleEditNote = (note) => {
+  console.log('Редактировать заметку:', note)
+  isNotesOpen.value = false
+}
 </script>
 
-<style scoped>
 
+<style scoped>
 .preHead {
   display: flex;
   justify-content: center;
