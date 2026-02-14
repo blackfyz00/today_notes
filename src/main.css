@@ -1,8 +1,42 @@
+/* Глобальные переменные темы */
+:root {
+  /* Светлая тема по умолчанию */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --border-color: #dee2e6;
+  --card-bg: #ffffff;
+  --button-bg: linear-gradient(135deg, #3498db, #2ecc71);
+  --heading-color: #2c3e50;
+  --input-border: #e0e6ed;
+  --input-bg: #fafbfd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #121212;
+    --bg-secondary: #1e1e24;
+    --text-primary: #ecf0f1;
+    --text-secondary: #bdc3c7;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --card-bg: rgba(30, 30, 38, 0.7);
+    --button-bg: linear-gradient(135deg, #3498db, #2ecc71);
+    --heading-color: #ecf0f1; /* или оставить как есть — зависит от дизайна */
+    --input-border: rgba(255, 255, 255, 0.15);
+    --input-bg: rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* Общие стили */
 body {
   text-align: center;
   margin: 0;
-  padding: 5vw clamp(3px, 10vw, 100px);
+  padding: 0vw clamp(3px, 10vw, 100px);
   box-sizing: border-box;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .day-cell,
@@ -17,40 +51,23 @@ body {
   transition: none;
 }
 
-/* Заголовок h1 — элегантный и центрированный */
-h1 {
-  color: #2c3e50;
-  text-align: center;
-  font-size: 2.5rem; /* ~40px */
+/* Заголовки */
+h1,
+.form h2 {
+  color: var(--heading-color);
   font-weight: 700;
   letter-spacing: -0.5px;
-  line-height: 1.2;
-  margin: 2rem 0 1.5rem;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: inherit;
+  margin: 2rem auto 1.5rem;
   position: relative;
-}
-
-/* Обычные абзацы — чистые, воздушные, с хорошим ритмом */
-p {
-  color: #2c3e50;
-  font-size: 1.125rem; /* 18px */
-  line-height: 1.6;
-  font-weight: 400;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  margin: 0 0 1.5rem; /* отступ снизу для ритма */
   text-align: center;
-  max-width: 700px;
-  margin-left: auto;
-  margin-right: auto;
-  opacity: 0.9;
-  transition: opacity 0.2s;
 }
 
-p:hover {
-  opacity: 1;
+h1 {
+  font-size: 2.5rem;
+  line-height: 1.2;
 }
 
-/* Декоративная подчёркивающая линия (опционально) */
 h1::after {
   content: '';
   display: block;
@@ -61,37 +78,45 @@ h1::after {
   border-radius: 2px;
 }
 
-/* Основной текст — читаемый и мягкий */
-.main-text {
-  color: #2c3e50;
-  font-size: 1.125rem; /* ~18px */
+.form h2 {
+  font-size: 28px;
+  margin-bottom: 32px;
+}
+
+/* Текстовые абзацы */
+p {
+  font-size: 1.125rem;
   line-height: 1.6;
-  text-align: center;
-  max-width: 700px;
-  margin: 0 auto 2rem;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-weight: 400;
+  max-width: 700px;
+  margin: 0 auto 1.5rem;
   opacity: 0.9;
   transition: opacity 0.2s;
 }
 
-.main-text:hover {
+p:hover {
   opacity: 1;
 }
 
+/* .main-text теперь не нужен — он дублирует p */
+/* Если всё же нужен специальный класс — можно оставить, но без дублей */
+.main-text {
+  /* Наследует всё от p, можно добавить только уникальное, например: */
+  margin-bottom: 2rem;
+}
+
+/* Форма */
 .form {
   max-width: 520px;
   margin: 48px auto;
   padding: 36px;
-  background: #ffffff;
+  background: var(--card-bg);
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  font-family: 'Segoe UI', system-ui, sans-serif;
   position: relative;
   overflow: hidden;
 }
 
-/* Декоративный акцент */
 .form::before {
   content: '';
   position: absolute;
@@ -100,15 +125,6 @@ h1::after {
   right: 0;
   height: 4px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
-}
-
-.form h2 {
-  text-align: center;
-  font-size: 28px;
-  font-weight: 700;
-  color: #2c3e50;
-  margin-bottom: 32px;
-  letter-spacing: -0.5px;
 }
 
 .form-group {
@@ -120,7 +136,7 @@ h1::after {
   margin-bottom: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #34495e;
+  color: var(--text-secondary);
   letter-spacing: 0.3px;
 }
 
@@ -128,19 +144,20 @@ h1::after {
 .form-group textarea {
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid #e0e6ed;
+  border: 1px solid var(--input-border);
   border-radius: 10px;
   font-size: 16px;
-  color: #2c3e50;
-  background-color: #fafbfd;
+  color: var(--text-primary);
+  background-color: var(--input-bg);
   transition: all 0.3s ease;
   outline: none;
+  font-family: inherit;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   border-color: #3498db;
-  background-color: #ffffff;
+  background-color: var(--bg-primary);
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
 }
 
@@ -149,6 +166,7 @@ h1::after {
   min-height: 120px;
 }
 
+/* Кнопка отправки */
 .submit-btn {
   width: 100%;
   padding: 14px;
@@ -162,6 +180,7 @@ h1::after {
   transition: all 0.3s ease;
   letter-spacing: 0.5px;
   box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  font-family: inherit;
 }
 
 .submit-btn:hover {
@@ -175,10 +194,14 @@ h1::after {
 }
 
 /* Адаптивность */
-@media (max-width: 600px) {
+@media (max-width: 900px) {
   .form {
     margin: 24px;
     padding: 28px;
+  }
+
+  body{
+    padding: 2vw clamp(3px, 5vw, 100px);
   }
 
   .form h2 {

@@ -33,5 +33,9 @@
          "nov":"November",
          "dec":"December"
       }
+   },
+   "Notes":{
+      "noNotes": "No notes :(",
+      "noNoteslog": "Write down your thoughts, ideas and moments!"
    }
 }

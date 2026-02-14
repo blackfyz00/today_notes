@@ -1,4 +1,4 @@
-<!-- src/components/NotesModal.vue -->
+<!-- src/views/NotesModal.vue -->
 <template>
   <Teleport to="body">
     <div v-if="modelValue" class="notes-modal-overlay" @click="handleOverlayClick">
@@ -8,6 +8,7 @@
           @close="onClose"
           @create="onCreate"
           @edit="onEdit"
+          @create-editor="$emit('create-editor')"
         />
       </div>
     </div>
@@ -20,25 +21,19 @@ import { App } from '@capacitor/app'
 import CheckNotes from './CheckNotes.vue'
 
 const props = defineProps({
-  modelValue: Boolean, // v-model
+  modelValue: Boolean,
   date: { type: Date, required: true }
 })
 
-const emit = defineEmits(['update:modelValue', 'create', 'edit'])
+const emit = defineEmits(['update:modelValue', 'create', 'edit', 'create-editor'])
 
-const close = () => {
-  emit('update:modelValue', false)
-}
-
-const handleOverlayClick = () => {
-  close()
-}
-
+const close = () => emit('update:modelValue', false)
+const handleOverlayClick = () => close()
 const onClose = () => close()
 const onCreate = (note) => emit('create', note)
 const onEdit = (note) => emit('edit', note)
 
-// Android Back Button
+// Android back button
 let removeListener
 onMounted(() => {
   if (props.modelValue) {
@@ -48,11 +43,8 @@ onMounted(() => {
     })
   }
 })
-
 onUnmounted(() => {
-  if (removeListener) {
-    removeListener.then(listener => listener.remove())
-  }
+  if (removeListener) removeListener.then(l => l.remove())
 })
 </script>
 
@@ -63,11 +55,11 @@ onUnmounted(() => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.6); /* полупрозрачный оверлей — не зависит от темы */
   display: flex;
   justify-content: center;
-  align-items: flex-start; /* можно поменять на center */
-  z-index: 9999;
+  align-items: flex-start; /* или center — по вашему усмотрению */
+  z-index: 3;
   padding: 2rem 1rem 1rem;
   box-sizing: border-box;
 }
@@ -78,7 +70,7 @@ onUnmounted(() => {
   max-height: 90vh;
   overflow-y: auto;
   border-radius: 16px;
-  background: #1e1e24; /* фон из вашего стиля */
+  background: var(--card-bg); /* ← заменено на переменную */
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 </style>

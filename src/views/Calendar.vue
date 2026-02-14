@@ -1,10 +1,11 @@
+<!-- src/views/Calendar.vue -->
 <template>
   <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
   <div class="mobile-menu-toggle" @click="openNotesForDay(new Date())">+</div>
 
   <div class="preHead">
     <div class="stdBtn" @click="prevMonth">←</div>
-    <div class="CalendBtn" @click="openMonthPicker">{{ thisMonth }}</div>
+    <div class="CalendBtn" @click="openMonthPicker">{{ `${thisMonth} ${currentDate.getFullYear()}` }}</div>
     <div class="stdBtn" @click="nextMonth">→</div>
   </div>
 
@@ -39,8 +40,15 @@
   <NotesModalView
     v-model="isNotesOpen"
     :date="selectedDate"
-    @create="handleCreate"
+    @create-editor="openNewNoteEditor" 
     @edit="handleEdit"
+  />
+
+  <NewNoteModal
+  v-model="isNewNoteOpen"
+  :is-editing="false"
+  @create="handleCreateNote"
+  @update:modelValue="isNewNoteOpen = $event"
   />
 </template>
 
@@ -49,11 +57,13 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import NotesModalView from './NotesModalView.vue'
 import MonthPickerModal from './MonthPickerModal.vue'
+import NewNoteModal from './NewNoteModal.vue'
 
 const { t } = useI18n()
 
 // === Состояние модалки ===
 const isNotesOpen = ref(false)
+const isNewNoteOpen = ref(false)  
 const isMonthPickerOpen = ref(false) 
 const selectedDate = ref(new Date())
 
@@ -117,6 +127,12 @@ const prevMonth = () => {
   currentDate.value = newDate
 }
 
+const openNewNoteEditor = () => {
+  isNewNoteOpen.value = true
+  // Опционально: можно не закрывать список заметок
+  // isNotesOpen.value = false   // ← если хотите закрывать — оставьте
+}
+
 const nextMonth = () => {
   const newDate = new Date(currentDate.value)
   newDate.setMonth(newDate.getMonth() + 1)
@@ -148,26 +164,27 @@ const handleEditNote = (note) => {
 }
 </script>
 
-
 <style scoped>
 .preHead {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
-  margin: 0 16px 24px;
-  flex-wrap: nowrap; 
+  gap: 5px;
+  margin: 0 12px 16px;
+  padding: 5px;
+  min-height: 48px;
+  font-size: 1.125rem;
 }
-/* Заголовок календаря — чёткий, центрированный, с акцентом */
+
+/* Заголовок календаря */
 h1 {
-  color: #2c3e50;
+  color: var(--heading-color);
   text-align: center;
-  font-size: 2.25rem; /* ~36px */
+  font-size: 2.25rem;
   font-weight: 700;
   letter-spacing: -0.5px;
   line-height: 1.2;
   margin: 2rem 0 1.25rem;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   position: relative;
 }
 
@@ -181,7 +198,7 @@ h1::after {
   border-radius: 2px;
 }
 
-/* Кнопки навигации — аккуратные и интерактивные */
+/* Кнопки навигации */
 .stdBtn,
 .CalendBtn {
   display: inline-flex;
@@ -189,37 +206,35 @@ h1::after {
   justify-content: center;
   margin: 0 6px;
   padding: 10px 16px;
-  font-size: 1rem;
+  font-size: 1.5rem;
   font-weight: 600;
-  color: #2c3e50;
-  background: #f8f9fa;
-  border: 1px solid #dde2e9;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.25s ease;
   user-select: none;
-  font-family: 'Segoe UI', system-ui, sans-serif;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 .stdBtn:hover,
 .CalendBtn:hover {
-  background: #edf2f7;
-  border-color: #cbd5e0;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
 .CalendBtn {
   min-width: 140px;
-  font-weight: 600;
   color: #3498db;
-  background: #ffffff;
+  background: var(--card-bg);
   border: 2px solid #3498db;
 }
 
 .CalendBtn:hover {
-  background: #f0f9ff;
+  background: rgba(52, 152, 219, 0.05);
   border-color: #2980b9;
   color: #2980b9;
 }
@@ -239,54 +254,52 @@ h1::after {
   height: 40px;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #2c3e50;
-  background: #f1f5f9;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
   border-radius: 10px;
   user-select: none;
-  font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
 .CalendarBody {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px; /* немного увеличили отступ между ячейками */
-  padding: 12px; /* чуть больше внутреннего отступа */
-  background: #ffffff;
-  border-radius: 20px; /* чуть мягче при большем размере */
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); /* чуть глубже тень */
+  gap: 8px;
+  padding: 12px;
+  background: var(--card-bg);
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 .day-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 64px; /* было 48px → теперь 64px (на ~33% больше) */
-  font-size: 1.3rem; /* было 1.1rem → теперь крупнее */
-  font-weight: 600; /* чуть жирнее для лучшей читаемости */
-  color: #2c3e50;
-  background: #ffffff;
-  border-radius: 16px; /* было 12px → пропорционально увеличено */
+  height: 64px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--card-bg);
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.25s ease;
   user-select: none;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   border: 1px solid transparent;
 }
 
 .day-cell:hover {
-  background: #f0f9ff;
-  border-color: #bbe2ff;
+  background: rgba(52, 152, 219, 0.08);
+  border-color: rgba(52, 152, 219, 0.3);
   transform: scale(1.03);
 }
 
 /* Дни из других месяцев */
 .other-month {
-  color: #a0aec0;
+  color: var(--text-secondary);
   opacity: 0.7;
 }
 
 .other-month:hover {
-  background: #f8fafc;
+  background: var(--bg-secondary);
   opacity: 1;
 }
 
@@ -305,50 +318,56 @@ h1::after {
 
 /* Выходные дни */
 .weekend {
-  color: #e74c3c;
-  font-weight: 600;
+  color: #e74c3c; /* можно вынести в --color-danger, но оставим как акцент */
 }
 
 .weekend.other-month {
   color: #e07b7b;
 }
 
-.mobile-menu-toggle{
-  display: none
+.mobile-menu-toggle {
+  display: none;
 }
 
 /* Адаптивность */
 @media (max-width: 900px) {
-
   .mobile-menu-toggle {
-  display: flex;
-  position: fixed;
-  top: 35px;
-  right: 7vw;
-  z-index: 101;
-  width: 65px;
-  height: 65px;
-  border-radius: 50%; 
-
-  background: linear-gradient(90deg, #3498db, #2ecc71);
-  color: white;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    position: fixed;
+    top: 42px;
+    right: 7vw;
+    z-index: 1;
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    color: white;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
+
+  .CalendarHead{
+    grid-template-columns: repeat(7, minmax(4px, 1fr));
+  }
+
+  .CalendarBody {
+    gap: 12px;
+    padding: 16px;
+    grid-template-columns: repeat(7, minmax(4px, 1fr));
+  }
+
   .mobile-menu-toggle:hover {
     transform: scale(1.1);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   }
 
   h1 {
-    font-size: 1.875rem; /* ~30px */
+    font-size: 1.875rem;
     margin-top: 1.5rem;
   }
 
@@ -368,8 +387,9 @@ h1::after {
   }
 
   .day-cell {
-    height: 42px;
-    font-size: 1rem;
+    height: 60px;
+    font-size: 1.2rem;
+    border-radius: 14px;
   }
 }
 </style>

@@ -1,3 +1,4 @@
+<!-- src/views/CheckNotes.vue -->
 <template>
   <div class="notes-page">
     <!-- Заголовок даты -->
@@ -28,11 +29,11 @@
           <line x1="3" y1="10" x2="21" y2="10"></line>
         </svg>
       </div>
-      <h3>Нет заметок</h3>
+      <h3> {{t("Notes.noNotes")}}</h3>
       <p class="empty-subtext">
-        Запишите свои мысли, идеи и моменты!<br>
+        {{t("Notes.noNoteslog")}}<br>
       </p>
-      <button class="create-btn" @click="$emit('create')">
+      <button class="create-btn" @click="$emit('create-editor')">
         Создать заметку
       </button>
     </div>
@@ -57,12 +58,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 // Props & Emits
 const props = defineProps({
   date: { type: Date, required: true }
 })
-const emit = defineEmits(['close', 'create', 'edit'])
+const emit = defineEmits(['close', 'create', 'edit', 'create-editor'])
 
 // State
 const notes = ref([])
@@ -110,28 +114,27 @@ onMounted(async () => {
 
 <style scoped>
 .notes-page {
-  background-color: #1e1e24;
+  background-color: var(--bg-secondary);
   min-height: 100vh;
   padding: 2rem 1rem;
   box-sizing: border-box;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  color: #ecf0f1;
+  color: var(--text-primary);
 }
 
 /* Заголовок даты */
 .date-header {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* теперь работает корректно: title слева/центре, кнопка — справа */
+  justify-content: space-between;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .date-title {
   text-align: center;
-  flex-grow: 1; /* занимает всё доступное пространство */
-  margin: 0 1rem; /* отступы от кнопки */
+  flex-grow: 1;
+  margin: 0 1rem;
 }
 
 .date-icon {
@@ -148,19 +151,19 @@ onMounted(async () => {
 .date-icon svg {
   width: 20px;
   height: 20px;
-  color: #3498db;
+  color: #3498db; /* можно вынести в --accent, но оставим как акцент */
 }
 
 .date-header h2 {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #ecf0f1;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .note-count {
   font-size: 0.95rem;
-  color: #bdc3c7;
+  color: var(--text-secondary);
   margin: 0.25rem 0 0;
   font-weight: 400;
 }
@@ -174,14 +177,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #95a5a6;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #ecf0f1;
+  color: var(--text-primary);
 }
 
 .close-btn svg {
@@ -211,19 +214,20 @@ onMounted(async () => {
 .empty-icon svg {
   width: 32px;
   height: 32px;
+  color: #3498db;
 }
 
 .empty-state h3 {
   font-size: 1.875rem;
   font-weight: 700;
-  color: #ecf0f1;
+  color: var(--text-primary);
   margin: 0 0 1rem;
 }
 
 .empty-subtext {
   font-size: 1.125rem;
   line-height: 1.6;
-  color: #bdc3c7;
+  color: var(--text-secondary);
   max-width: 400px;
   margin: 0 auto 2rem;
 }
@@ -261,11 +265,11 @@ onMounted(async () => {
 }
 
 .note-card {
-  background: rgba(30, 30, 38, 0.7);
+  background: var(--card-bg);
   border-radius: 12px;
   overflow: hidden;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
   transition: transform 0.3s, box-shadow 0.3s;
 }
 
@@ -279,13 +283,13 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
-  background: rgba(25, 25, 32, 0.8);
+  background: rgba(25, 25, 32, 0.8); /* можно заменить на переменную, если нужно */
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .note-time {
   font-size: 0.875rem;
-  color: #95a5a6;
+  color: var(--text-secondary);
 }
 
 .edit-btn {
@@ -297,14 +301,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #95a5a6;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .edit-btn:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #ecf0f1;
+  color: var(--text-primary);
 }
 
 .edit-btn svg {
@@ -316,7 +320,7 @@ onMounted(async () => {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0.75rem 1.25rem;
-  color: #ecf0f1;
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -324,7 +328,7 @@ onMounted(async () => {
   padding: 0 1.25rem 1.25rem;
   font-size: 1rem;
   line-height: 1.5;
-  color: #bdc3c7;
+  color: var(--text-secondary);
   word-break: break-word;
 }
 
@@ -332,7 +336,7 @@ onMounted(async () => {
 .loading {
   text-align: center;
   padding: 4rem 1rem;
-  color: #95a5a6;
+  color: var(--text-secondary);
 }
 
 /* Адаптивность */
