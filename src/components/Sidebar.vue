@@ -7,13 +7,14 @@
   >
     ☰
   </button>
+  
   <div 
-      class="sidebar" 
-      :class="{ 
-        'collapsed': !isMobile && isCollapsed,
-        'mobile-open': isMobile && isMobileOpen 
-      }"
-    >
+    class="sidebar" 
+    :class="{ 
+      'collapsed': !isMobile && isCollapsed,
+      'mobile-open': isMobile && isMobileOpen 
+    }"
+  >
     <div class="sidebar-header">
       <button @click="handleToggle" class="toggle-btn">
         {{ isMobile ? '✕' : (isCollapsed ? '☰' : '✕') }}
@@ -24,10 +25,14 @@
     <nav class="sidebar-nav">
       <ul>
         <li v-for="item in menuItems" :key="item.name">
-          <a :href="item.link" @click.prevent>
+          <router-link 
+            :to="item.link"
+            class="menu-link"
+            @click="onMenuItemClick"
+          >
             <span class="icon">{{ item.icon }}</span>
             <span v-if="!isCollapsed || isMobile" class="label">{{ item.name }}</span>
-          </a>
+          </router-link>
         </li>
       </ul>
     </nav>
@@ -37,44 +42,17 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const { t } = useI18n();
 
 // Состояния
 const isCollapsed = ref(true);
 const isMobileOpen = ref(false);
 
-// Определяем, мобильное ли устройство (ширина ≤ 768px)
+// Определяем, мобильное ли устройство
 const isMobile = computed(() => window.innerWidth <= 768);
-
-// Обновляем состояние при монтировании (чтобы корректно определить isMobile)
-onMounted(() => {
-  // Дополнительно можно добавить обработчик resize, но для простоты — только инициализация
-});
-
-// Переключение сайдбара (для десктопа)
-const toggleSidebar = () => {
-  isCollapsed.value = !isCollapsed.value;
-};
-
-// Открытие мобильного меню
-const toggleMobileMenu = () => {
-  isMobileOpen.value = true;
-};
-
-// Закрытие мобильного меню (вызывается извне, например, по клику на оверлей или крестик)
-const closeMobileMenu = () => {
-  isMobileOpen.value = false;
-};
-
-// Универсальная функция для кнопки внутри сайдбара
-const handleToggle = () => {
-  if (isMobile.value) {
-    closeMobileMenu();
-  } else {
-    toggleSidebar();
-  }
-};
 
 // Меню с локализацией
 const menuItems = computed(() => [
@@ -83,6 +61,49 @@ const menuItems = computed(() => [
   { name: t('Menu.settings'), icon: '⚙️', link: '/settings' },
   { name: t('Menu.help'), icon: '❓', link: '/help' }
 ]);
+
+// Открытие мобильного меню
+const toggleMobileMenu = () => {
+  isMobileOpen.value = true;
+};
+
+// Закрытие мобильного меню
+const closeMobileMenu = () => {
+  isMobileOpen.value = false;
+};
+
+// Переключение сайдбара (десктоп)
+const toggleSidebar = () => {
+  isCollapsed.value = !isCollapsed.value;
+};
+
+// Универсальный обработчик кнопки в шапке сайдбара
+const handleToggle = () => {
+  if (isMobile.value) {
+    closeMobileMenu();
+  } else {
+    toggleSidebar();
+  }
+};
+
+// Закрываем мобильное меню при выборе пункта
+const onMenuItemClick = () => {
+  if (isMobile.value) {
+    closeMobileMenu();
+  }
+};
+
+// (Опционально) Обновляем isMobile при изменении размера окна
+onMounted(() => {
+  const handleResize = () => {
+    // При переходе с десктопа на мобильный — закрываем сайдбар, если он был открыт
+    if (window.innerWidth <= 768) {
+      isMobileOpen.value = false;
+    }
+  };
+  window.addEventListener('resize', handleResize);
+  // Удаление слушателя не обязателен в простых случаях, но можно добавить onBeforeUnmount
+});
 </script>
 
 <style scoped>

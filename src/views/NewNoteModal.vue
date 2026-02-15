@@ -5,7 +5,7 @@
       <div class="note-editor" @click.stop>
         <header class="editor-header">
           <button class="stdBtn back-btn" @click="$emit('update:modelValue', false)">←</button>
-          <h1>{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
+          <h1 class="editor-title">{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
         </header>
 
         <div class="toolbar">
@@ -156,7 +156,7 @@ const recordVoice = () => console.log('Record voice')
 }
 
 .editor-header {
-  justify-content: center;
+  justify-content: flex;
   position: relative;
   display: flex;
   align-items: center;
@@ -165,13 +165,17 @@ const recordVoice = () => console.log('Record voice')
   border-bottom: 1px solid var(--border-color);
 }
 
-.editor-header h1 {
-  flex: 1;
-  text-align: center;
+.editor-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   color: var(--heading-color);
   font-size: 1.8rem;
-  margin: 0;
   font-weight: 700;
+  margin: 0;
+  white-space: nowrap;
+  /* Если заголовок длинный — уберите white-space и добавьте max-width */
 }
 
 .toolbar {
@@ -315,6 +319,7 @@ const recordVoice = () => console.log('Record voice')
     height: 36px;
     font-size: 1rem;
   }
+
   
   .note-textarea {
     min-height: 160px;
