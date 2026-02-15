@@ -5,7 +5,7 @@
       <div class="note-editor" @click.stop>
         <header class="editor-header">
           <button class="stdBtn back-btn" @click="$emit('update:modelValue', false)">←</button>
-          <h1>{{ isEditing ? 'Редактировать' : 'Новая заметка' }}</h1>
+          <h1>{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
         </header>
 
         <div class="toolbar">
@@ -20,13 +20,13 @@
           <textarea 
             v-model="localContent"
             class="note-textarea"
-            placeholder="Начните писать..."
+            :placeholder="t('NewNote.start_typing')"
             @input="isDirty = true"
           ></textarea>
         </div>
 
         <div class="editor-actions">
-          <button class="submit-btn save-btn" @click="saveNote">Сохранить</button>
+          <button class="submit-btn save-btn" @click="saveNote">{{t("NewNote.save")}}</button>
           <button v-if="isEditing" class="submit-btn delete-btn" @click="deleteNote">Удалить</button>
         </div>
       </div>
@@ -36,6 +36,9 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   modelValue: Boolean,
@@ -137,9 +140,9 @@ const recordVoice = () => console.log('Record voice')
   flex: 1;
   padding: 30px;
   display: flex;
+  align-items: center;   
   text-align: center;
   flex-direction: column;
-  overflow-y: auto; /* ← прокрутка только в области текста */
 }
 
 .note-editor::before {
@@ -153,8 +156,11 @@ const recordVoice = () => console.log('Record voice')
 }
 
 .editor-header {
+  justify-content: center;
+  position: relative;
   display: flex;
   align-items: center;
+  
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -168,28 +174,10 @@ const recordVoice = () => console.log('Record voice')
   font-weight: 700;
 }
 
-.back-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--text-primary);
-  cursor: pointer;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-
-.back-btn:hover {
-  background: var(--bg-secondary);
-}
-
 .toolbar {
   display: flex;
   padding: 12px 16px;
+  justify-content: center;
   gap: 10px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -199,8 +187,8 @@ const recordVoice = () => console.log('Record voice')
   background: var(--bg-secondary);
   border: none;
   border-radius: 8px;
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,6 +202,26 @@ const recordVoice = () => console.log('Record voice')
   background: var(--bg-primary);
   color: var(--text-primary);
   transform: translateY(-2px);
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  width: 100px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s;
+  left: 20px;
+}
+
+.back-btn:hover {
+  background: var(--bg-secondary);
 }
 
 .note-textarea {

@@ -117,7 +117,7 @@ const openNotesForDay = (date) => {
   // if (date.getMonth() !== currentDate.value.getMonth()) return
 
   selectedDate.value = new Date(date) // важно: копия, чтобы не мутировать
-  isNotesOpen.value = true
+  isNotesOpen.value = !isNotesOpen.value
 }
 
 // === Навигация ===
@@ -128,7 +128,7 @@ const prevMonth = () => {
 }
 
 const openNewNoteEditor = () => {
-  isNewNoteOpen.value = true
+  isNewNoteOpen.value = !isNewNoteOpen.value
   // Опционально: можно не закрывать список заметок
   // isNotesOpen.value = false   // ← если хотите закрывать — оставьте
 }
@@ -140,7 +140,7 @@ const nextMonth = () => {
 }
 
 const openMonthPicker = () => {
-  isMonthPickerOpen.value = true
+  isMonthPickerOpen.value = !isMonthPickerOpen.value
 }
 
 const onMonthSelect = (newDate) => {

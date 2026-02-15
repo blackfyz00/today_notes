@@ -95,7 +95,7 @@ const menuItems = computed(() => [
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1000;
+  z-index: 1;
   transition: width 0.3s ease, transform 0.3s ease;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border-radius: 0 16px 16px 0;
@@ -221,7 +221,7 @@ const menuItems = computed(() => [
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.4);
-  z-index: 999;
+  z-index: 1;
   backdrop-filter: blur(2px);
 }
 
@@ -231,7 +231,7 @@ const menuItems = computed(() => [
   position: fixed;
   top: 16px;
   left: 9vw;
-  z-index: 101;
+  z-index: 1;
   width: 59px;
   height: 59px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
