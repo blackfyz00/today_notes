@@ -1,9 +1,12 @@
 # backend/app/main.py
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from . import models, schemas, database
 from .database import engine
+from sqlalchemy import select, func, text
+from datetime import datetime
+
 
 app = FastAPI(title="Notes API")
 
@@ -17,16 +20,11 @@ async def startup():
 async def health():
     return {"status": "ok"}
 
-from fastapi import Query
-from datetime import datetime
-
 @app.get("/notes/", response_model=list[schemas.NoteOut])
 async def get_notes(
     db: AsyncSession = Depends(database.get_db),
     target_date: str = Query(None, alias="date", description="Фильтр по дате в формате YYYY-MM-DD")
 ):
-    from sqlalchemy import select
-
     query = select(models.Note)
 
     if target_date:
@@ -49,7 +47,7 @@ async def create_note(
     db: AsyncSession = Depends(database.get_db)
 ):
     # ВРЕМЕННО: без авторизации — привяжем к первому пользователю
-    result = await db.execute("SELECT id FROM users LIMIT 1")
+    result = await db.execute(text("SELECT id FROM users LIMIT 1"))
     user_id = result.scalar()
     if not user_id:
         raise HTTPException(status_code=400, detail="No users in DB")
