@@ -112,7 +112,6 @@ const recordVoice = () => console.log('Record voice')
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   /* Измените align-items: stretch + padding через margin или внутренний отступ */
