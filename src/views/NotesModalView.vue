@@ -127,7 +127,12 @@ const fetchNotes = async () => {
   
   isLoading.value = true
   try {
-    const dateStr = props.date.toISOString().split('T')[0] // "2026-02-24"
+    const dateStr = props.date.toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    
     const res = await fetch(`/api/notes?date=${dateStr}`, {
       headers: {
         'Content-Type': 'application/json',
@@ -181,8 +186,7 @@ onUnmounted(() => {
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     registerBackButton()
-    // Опционально: обновлять данные при каждом открытии
-    // fetchNotes() 
+    fetchNotes() 
   } else {
     unregisterBackButton()
   }
