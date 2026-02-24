@@ -123,16 +123,27 @@ const truncate = (str, len) => {
 
 // Загрузка данных
 const fetchNotes = async () => {
+  if (!props.date) return
+  
   isLoading.value = true
-  // Имитация запроса к API
-  await new Promise(r => setTimeout(r, 600))
-  
-  // Здесь должен быть реальный запрос, например:
-  // const res = await fetch(`/api/notes?date=${props.date.toISOString().split('T')[0]}`)
-  // notes.value = await res.json()
-  
-  notes.value = [] // Пока оставляем пустым для демонстрации
-  isLoading.value = false
+  try {
+    const dateStr = props.date.toISOString().split('T')[0] // "2026-02-24"
+    const res = await fetch(`/api/notes?date=${dateStr}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        // 'Authorization': `Bearer ${token}` // если нужна авторизация
+      }
+    })
+    
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    
+    notes.value = await res.json()
+  } catch (error) {
+    console.error('Ошибка загрузки заметок:', error)
+    // Можно добавить обработку ошибок UI: showErrorToast(error.message)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 // Обработка кнопки "Назад" на Android

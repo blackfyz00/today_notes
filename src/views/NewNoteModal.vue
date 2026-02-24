@@ -17,11 +17,20 @@
         </div>
 
         <div class="editor-area">
+          <input 
+            v-model="localTitle"
+            class="note-title-input"
+            :placeholder="t('NewNote.title_placeholder')"
+            @input="isDirty = true"
+            :disabled="isLoading"
+          />
+          
           <textarea 
             v-model="localContent"
             class="note-textarea"
             :placeholder="t('NewNote.start_typing')"
             @input="isDirty = true"
+            :disabled="isLoading"
           ></textarea>
         </div>
 
@@ -137,11 +146,33 @@ const recordVoice = () => console.log('Record voice')
 /* Остальное без изменений, но убедитесь: */
 .editor-area {
   flex: 1;
-  padding: 30px;
+  padding: 10px;
+  padding-inline: 30px;
   display: flex;
   align-items: center;   
   text-align: center;
   flex-direction: column;
+}
+
+.note-title-input{
+  width: 50%;
+  min-width: 0;
+  padding: 5px;
+  margin: 5px;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--text-primary);
+  background-color: var(--input-bg);
+  outline: none;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .note-editor::before {
@@ -159,7 +190,6 @@ const recordVoice = () => console.log('Record voice')
   position: relative;
   display: flex;
   align-items: center;
-  
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
 }
