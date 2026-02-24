@@ -42,3 +42,5 @@ __screenshots__/
 # my
 prompts.md
 api_test.xlsx
+
+/backend/app/__pycache__/
