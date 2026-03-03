@@ -2,7 +2,8 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-password = "ваш_пароль_тут"
+# password = "hello" "test@example.com"
+password = "hello"
 hashed = pwd_context.hash(password)
 
 print(f"Password: {password}")

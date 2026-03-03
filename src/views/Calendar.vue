@@ -373,7 +373,6 @@ h1::after {
 }
 
 .other-month:hover {
-  background: var(--bg-secondary);
   opacity: 1;
 }
 

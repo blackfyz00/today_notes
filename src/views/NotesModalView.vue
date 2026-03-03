@@ -133,23 +133,31 @@ const fetchNotes = async () => {
       day: '2-digit'
     })
     
-    const res = await fetch(`/api/notes?date=${dateStr}`, {
+    // 1. Получаем токен из хранилища (localStorage/Cookies/Store)
+    const token = localStorage.getItem('token') 
+
+    // 2. Исправляем путь на /notes/ (согласно вашему FastAPI)
+    const res = await fetch(`api/notes/?date=${dateStr}`, {
       headers: {
         'Content-Type': 'application/json',
-        // 'Authorization': `Bearer ${token}` // если нужна авторизация
+        'Authorization': `Bearer ${token}` 
       }
     })
     
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+        if (res.status === 401) console.error('Пользователь не авторизован');
+        throw new Error(`HTTP ${res.status}`);
+    }
     
     notes.value = await res.json()
   } catch (error) {
     console.error('Ошибка загрузки заметок:', error)
-    // Можно добавить обработку ошибок UI: showErrorToast(error.message)
+    notes.value = [] // Очищаем список при ошибке
   } finally {
     isLoading.value = false
   }
 }
+
 
 // Обработка кнопки "Назад" на Android
 const registerBackButton = () => {
