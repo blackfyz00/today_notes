@@ -1,3 +1,97 @@
+<template>
+  <div class="auth-container">
+    <!-- Заголовок страницы (использует стили h1) -->
+    <h1>Добро пожаловать</h1>
+    
+    <p class="main-text">
+      Пожалуйста, войдите в свой аккаунт, чтобы продолжить работу.
+    </p>
+
+    <!-- Форма авторизации -->
+    <form class="form" @submit.prevent="handleLogin">
+      <h2>Авторизация</h2>
+
+      <!-- Поле Email -->
+      <div class="form-group">
+        <label for="email">Email адрес</label>
+        <input 
+          type="email" 
+          id="email" 
+          v-model="email" 
+          placeholder="name@example.com" 
+          required
+        />
+      </div>
+
+      <!-- Поле Пароль -->
+      <div class="form-group">
+        <label for="password">Пароль</label>
+        <input 
+          type="password" 
+          id="password" 
+          v-model="password" 
+          placeholder="••••••••" 
+          required
+        />
+      </div>
+
+      <!-- Кнопка входа -->
+      <button type="submit" class="submit-btn" :disabled="isLoading">
+        {{ isLoading ? 'Вход...' : 'Войти' }}
+      </button>
+
+      <!-- Дополнительный текст (ссылка на регистрацию) -->
+      <p style="margin-top: 24px; font-size: 0.95rem;">
+        Нет аккаунта? 
+        <a href="#" style="color: #3498db; text-decoration: none; font-weight: 600;">Зарегистрироваться</a>
+      </p>
+    </form>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+const router = useRouter(); 
+
+// Состояние формы
+const email = ref<string>('');
+const password = ref<string>('');
+const isLoading = ref<boolean>(false);
+
+// Обработчик отправки формы
+const handleLogin = async () => {
+  isLoading.value = true;
+
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.value,
+        password: password.value
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Ошибка авторизации');
+    }
+
+    const data = await response.json();
+    
+    // Сохраняем токен
+    localStorage.setItem('token', data.access_token);
+    router.push('/')
+  } catch (error) {
+    alert('Неверный логин или пароль');
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+</script>
+
+<style scoped>
 /* Глобальные переменные темы */
 :root {
   /* Светлая тема по умолчанию */
@@ -22,7 +116,7 @@
     --border-color: rgba(255, 255, 255, 0.1);
     --card-bg: rgba(30, 30, 38, 0.7);
     --button-bg: linear-gradient(135deg, #3498db, #2ecc71);
-    --heading-color: #ecf0f1; /* или оставить как есть — зависит от дизайна */
+    --heading-color: #ecf0f1;
     --input-border: rgba(255, 255, 255, 0.15);
     --input-bg: rgba(255, 255, 255, 0.05);
   }
@@ -37,18 +131,7 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-}
-
-.day-cell,
-.stdBtn,
-.CalendBtn {
-  touch-action: manipulation;
-}
-
-.day-cell:active {
-  background-color: #e6f7ff;
-  transform: scale(0.97);
-  transition: none;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 /* Заголовки */
@@ -81,6 +164,7 @@ h1::after {
 .form h2 {
   font-size: 28px;
   margin-bottom: 32px;
+  margin-top: 0; /* Сброс отступа для заголовка внутри формы */
 }
 
 /* Текстовые абзацы */
@@ -98,10 +182,7 @@ p:hover {
   opacity: 1;
 }
 
-/* .main-text теперь не нужен — он дублирует p */
-/* Если всё же нужен специальный класс — можно оставить, но без дублей */
 .main-text {
-  /* Наследует всё от p, можно добавить только уникальное, например: */
   margin-bottom: 2rem;
 }
 
@@ -115,6 +196,7 @@ p:hover {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: hidden;
+  text-align: left; /* Выравнивание контента формы по левому краю */
 }
 
 .form::before {
@@ -152,6 +234,7 @@ p:hover {
   transition: all 0.3s ease;
   outline: none;
   font-family: inherit;
+  box-sizing: border-box; /* Важно для input */
 }
 
 .form-group input:focus,
@@ -159,11 +242,6 @@ p:hover {
   border-color: #3498db;
   background-color: var(--bg-primary);
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 120px;
 }
 
 /* Кнопка отправки */
@@ -181,30 +259,44 @@ p:hover {
   letter-spacing: 0.5px;
   box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
   font-family: inherit;
+  margin-top: 10px;
 }
 
-.submit-btn:hover {
+.submit-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, #2980b9, #2573a7);
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
 }
 
-.submit-btn:active {
+.submit-btn:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Адаптивность */
 @media (max-width: 900px) {
+  .auth-container{
+    margin-top: 7rem;
+  }
   .form {
-    margin: 1.5rem;
-    padding: 28px;
+    padding: 1rem;
   }
 
-    body{
-      margin-top: 1.5rem;
-    }
+  body {
+    margin-top: 1rem;
+  }
 
   .form h2 {
     font-size: 24px;
   }
+  
+  h1 {
+    font-size: 2rem;
+  }
 }
+</style>

@@ -5,8 +5,8 @@ services:
     image: postgres:16
     container_name: notes-postgres
     restart: always
-    env_file: .env
-    environment:
+    env_file: ./backend/.env
+    environment:  
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -18,7 +18,8 @@ services:
   
   backend:
     build: ./backend
-    env_file: .env
+    env_file: 
+      - ./backend/.env 
     container_name: notes-backend
     ports:
       - "8000:8000"

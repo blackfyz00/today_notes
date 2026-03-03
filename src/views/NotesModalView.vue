@@ -220,11 +220,16 @@ watch(() => props.date, () => {
 
 /* Контент модального окна */
 .notes-modal-content {
-  width: 100%;
+  width: 90%;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   max-width: 800px;
   max-height: 90vh;
   overflow-y: auto;
   border-radius: 16px;
+  align-items: center;
   background: var(--card-bg, #1a1a2e);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   margin: 1rem auto;
@@ -386,13 +391,13 @@ watch(() => props.date, () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
-  background: rgba(25, 25, 32, 0.8);
+  background: linear-gradient(90deg, #3498db, #2ecc71);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .note-time {
   font-size: 0.875rem;
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--bg-primary, #a0a0a0);
 }
 
 .edit-btn {
@@ -404,7 +409,7 @@ watch(() => props.date, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--bg-primary, #a0a0a0);
   cursor: pointer;
   transition: all 0.2s;
 }

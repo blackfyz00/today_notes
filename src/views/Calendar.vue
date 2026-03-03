@@ -26,6 +26,13 @@
       @click="openNotesForDay(day.fullDate)"
     >
       {{ day.date }}
+
+      <span 
+      v-if="noteStats[day.dateKey] > 0" 
+      class="note-dot"
+      :title="`${noteStats[day.dateKey]} заметок`"
+      ></span>
+
     </div>
   </div>
 
@@ -53,13 +60,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import NotesModalView from './NotesModalView.vue'
 import MonthPickerModal from './MonthPickerModal.vue'
 import NewNoteModal from './NewNoteModal.vue'
 
 const { t } = useI18n()
+import { ref, computed, onMounted, watch } from 'vue'
 
 // === Состояние модалки ===
 const isNotesOpen = ref(false)
@@ -71,6 +78,7 @@ const selectedDate = ref(new Date())
 const currentDate = ref(new Date())
 const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+const noteStats = ref({})
 
 const thisMonth = computed(() => {
   const monthIndex = currentDate.value.getMonth()
@@ -79,35 +87,6 @@ const thisMonth = computed(() => {
 
 const nameDays = computed(() => {
   return dayKeys.map(key => t(`Calendar.days.${key}`))
-})
-
-// Генерация дней с полной датой
-const days = computed(() => {
-  const now = new Date()
-  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
-
-  const year = currentDate.value.getFullYear()
-  const month = currentDate.value.getMonth()
-
-  const firstDay = new Date(year, month, 1).getDay()
-  const startOffset = firstDay === 0 ? -6 : 1 - firstDay
-
-  const result = []
-  for (let i = 0; i < 42; i++) {
-    const date = new Date(year, month, startOffset + i)
-    const isCurrentMonth = date.getMonth() === month
-    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-    const dayOfWeek = i % 7
-
-    result.push({
-      date: date.getDate(),
-      isOtherMonth: !isCurrentMonth,
-      isToday: dayKey === todayKey,
-      isWeekend: dayOfWeek === 5 || dayOfWeek === 6,
-      fullDate: date // ← сохраняем полную дату!
-    })
-  }
-  return result
 })
 
 // === Обработка клика по дню ===
@@ -158,10 +137,70 @@ const handleCreateNote = (note) => {
   isNotesOpen.value = false
 }
 
-const handleEditNote = (note) => {
+const handleEdit = (note) => {
   console.log('Редактировать заметку:', note)
   isNotesOpen.value = false
 }
+
+const formatDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0') // +1 т.к. JS месяцы с 0
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// === Обновленный computed для days ===
+const days = computed(() => {
+  const now = new Date()
+  // Формируем ключ "сегодня" в правильном формате для сравнения
+  const todayKey = formatDateKey(now)
+
+  const year = currentDate.value.getFullYear()
+  const month = currentDate.value.getMonth()
+
+  const firstDay = new Date(year, month, 1).getDay()
+  const startOffset = firstDay === 0 ? -6 : 1 - firstDay
+
+  const result = []
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(year, month, startOffset + i)
+    const isCurrentMonth = date.getMonth() === month
+    
+    // Используем новую функцию форматирования
+    const dateKey = formatDateKey(date)
+    const dayOfWeek = i % 7
+
+    result.push({
+      date: date.getDate(),
+      isOtherMonth: !isCurrentMonth,
+      isToday: dateKey === todayKey, // Сравнение строк в одном формате
+      isWeekend: dayOfWeek === 5 || dayOfWeek === 6,
+      fullDate: date,
+      dateKey: dateKey // ← Добавляем ключ для удобного доступа в шаблоне
+    })
+  }
+  return result
+})
+
+const fetchNoteStats = async () => {
+  const token = localStorage.getItem('token')
+  if (!token) return
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/notes/stats`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (response.ok) {
+      noteStats.value = await response.json()
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки статистики:', error)
+  }
+}
+
+
+onMounted(fetchNoteStats)
+watch(currentDate, fetchNoteStats)
+
 </script>
 
 <style scoped>
@@ -272,6 +311,7 @@ h1::after {
 
 .day-cell {
   display: flex;
+  position: relative; 
   align-items: center;
   justify-content: center;
   height: 64px;
@@ -287,9 +327,43 @@ h1::after {
 }
 
 .day-cell:hover {
+  transform: scale(1.03);
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.day-cell:not(.today):hover {
   background: rgba(52, 152, 219, 0.08);
   border-color: rgba(52, 152, 219, 0.3);
-  transform: scale(1.03);
+}
+
+.note-dot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  pointer-events: none; /* Чтобы точка не мешала клику по дню */
+}
+
+/* Опционально: другой цвет для дней с заметками */
+.day-cell.today .note-dot {
+  background-color: #10b981;
+}
+
+.today {
+  background: linear-gradient(135deg, #3498db, #2ecc71);
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+}
+
+.today:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 14px rgba(52, 152, 219, 0.4);
 }
 
 /* Дни из других месяцев */
@@ -301,19 +375,6 @@ h1::after {
 .other-month:hover {
   background: var(--bg-secondary);
   opacity: 1;
-}
-
-/* Сегодняшний день */
-.today {
-  background: linear-gradient(135deg, #3498db, #2ecc71);
-  color: white;
-  font-weight: 700;
-  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
-}
-
-.today:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 14px rgba(52, 152, 219, 0.4);
 }
 
 /* Выходные дни */

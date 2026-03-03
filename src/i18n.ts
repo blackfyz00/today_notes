@@ -7,7 +7,7 @@ export const SUPPORTED_LOCALES = ['ru', 'en'] as const
 export type SupportedLocale = typeof SUPPORTED_LOCALES[number]
 
 // 1. Пытаемся получить сохранённую локаль
-const savedLocale = 'en'// localStorage.getItem('locale')
+const savedLocale = 'ru'// localStorage.getItem('locale')
 
 // 2. Если нет — определяем системную
 let initialLocale: SupportedLocale = 'ru' // fallback

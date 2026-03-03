@@ -1,10 +1,10 @@
 // src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
 import Calendar from '@/views/Calendar.vue'
-import NewNoteModal from '@/views/NewNoteModal.vue'
+import AuthPage from '@/views/AuthPage.vue'
 
 const routes = [
-  { path: '/test', component: NewNoteModal },
+  { path: '/auth', component: AuthPage },
   { path: '/', component: Calendar }
 ]
 

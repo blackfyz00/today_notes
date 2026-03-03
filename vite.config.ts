@@ -17,6 +17,7 @@ export default defineConfig({
       hook: 'writeBundle'
     })
   ],
+  envDir: './backend',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
