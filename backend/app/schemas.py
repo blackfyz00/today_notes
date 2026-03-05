@@ -1,7 +1,7 @@
 # backend/app/schemas.py
 
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, Literal
 
 class UserCreate(BaseModel):
@@ -19,6 +19,7 @@ class UserOut(BaseModel):
 class NoteCreate(BaseModel):
     title: Optional[str] = None
     content: str
+    in_day: Optional[date] = None 
 
 class NoteUpdate(NoteCreate):
     pass
@@ -30,6 +31,7 @@ class NoteOut(BaseModel):
     content: str
     created_at: datetime
     updated_at: datetime
+    in_day: date 
 
     class Config:
         from_attributes = True

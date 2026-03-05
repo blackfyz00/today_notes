@@ -1,17 +1,15 @@
 <!-- src/views/NotesModalView.vue -->
 <template>
   <Teleport to="body">
-    <!-- Оверлей (фон затемнения) -->
     <div v-if="modelValue" class="notes-modal-overlay" @click="$emit('update:modelValue', false)">
-      
-      <!-- Контент модального окна -->
       <div class="notes-modal-content" @click.stop>
         
-        <!-- Заголовок даты и кнопка закрытия -->
+        <!-- Заголовок -->
         <div class="date-header">
           <div class="date-title">
             <h2>{{ formattedDate }}</h2>
-            <p class="note-count">{{ notes.length }} {{ getNoteCountText(notes.length) }}</p>
+            <!-- Берем длину напрямую из геттера стора -->
+            <p class="note-count">{{ currentNotes.length }} {{ getNoteCountText(currentNotes.length) }}</p>
           </div>
           <button class="close-btn" @click="$emit('update:modelValue', false)">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -21,13 +19,13 @@
           </button>
         </div>
 
-        <!-- Состояние загрузки -->
-        <div v-if="isLoading" class="loading">
+        <!-- Состояние загрузки (из стора) -->
+        <div v-if="store.isLoading" class="loading">
           <p>Загрузка...</p>
         </div>
 
         <!-- Пустое состояние -->
-        <div v-else-if="notes.length === 0" class="empty-state">
+        <div v-else-if="currentNotes.length === 0" class="empty-state">
           <div class="empty-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #3498db;">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -37,9 +35,7 @@
             </svg>
           </div>
           <h3>{{ t("Notes.noNotes") }}</h3>
-          <p class="empty-subtext">
-            {{ t("Notes.noNoteslog") }}<br>
-          </p>
+          <p class="empty-subtext">{{ t("Notes.noNoteslog") }}</p>
           <button class="create-btn" @click="$emit('create-editor')">
             Создать заметку
           </button>
@@ -47,18 +43,16 @@
 
         <!-- Сетка заметок -->
         <div v-else class="notes-grid">
-          <div v-for="note in notes" :key="note.id" class="note-card">
-            <div class="note-header">
-              <span class="note-time">{{ formatDate(note.created_at) }}</span>
-              <button class="edit-btn" @click="$emit('edit', note)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"></path>
-                  <polyline points="18.5 2.5 21 5 16 10"></polyline>
-                </svg>
-              </button>
-            </div>
-            <h4 class="note-title">{{ note.title || 'Без названия' }}</h4>
-            <p class="note-content">{{ truncate(note.content, 120) }}</p>
+          <div v-for="note in currentNotes" 
+            :key="note.id" 
+            class="note-card"
+            @click="emit('edit-note', note)" 
+            style="cursor: pointer;">
+              <div class="note-header">
+                <span class="note-time">{{ formatDate(note.updated_at) }}</span>
+              </div>
+              <h4 class="note-title">{{ note.title || 'Без названия' }}</h4>
+              <p class="note-content">{{ truncate(note.content, 120) }}</p>
           </div>
         </div>
 
@@ -68,33 +62,33 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { App } from '@capacitor/app'
+import { useNotesStore } from '../components/notesStore' // Импорт стора
 
 const { t, locale } = useI18n()
+const store = useNotesStore() // Инициализация стора
 
-// Props & Emits
 const props = defineProps({
   modelValue: Boolean,
   date: { type: Date, required: true }
 })
 
-const emit = defineEmits(['update:modelValue', 'create', 'edit', 'create-editor'])
+const emit = defineEmits([
+  'update:modelValue', 
+  'create-editor',   
+  'edit-note'         
+])
 
-// State
-const notes = ref([])
-const isLoading = ref(true)
-
-// Переменная для хранения слушателя кнопки назад
 let backBtnListener = null
 
-// Форматирование даты заголовка (например: "February 11, 2026")
+// Вычисляемое свойство: берем данные прямо из стора для текущей даты
+const currentNotes = computed(() => store.getNotesForDate(props.date))
+
 const formattedDate = computed(() => {
   if (!props.date) return ''
-  // Получаем текущую локаль (например, 'ru', 'en', 'es')
   const currentLocale = locale.value
-
   return new Intl.DateTimeFormat(currentLocale, {
     year: 'numeric',
     month: 'long',
@@ -102,7 +96,6 @@ const formattedDate = computed(() => {
   }).format(props.date)
 })
 
-// Вспомогательные функции
 const getNoteCountText = (count) => {
   if (count === 0) return 'заметок'
   if (count % 10 === 1 && count % 100 !== 11) return 'заметка'
@@ -121,45 +114,7 @@ const truncate = (str, len) => {
   return str.length > len ? str.slice(0, len) + '...' : str
 }
 
-// Загрузка данных
-const fetchNotes = async () => {
-  if (!props.date) return
-  
-  isLoading.value = true
-  try {
-    const dateStr = props.date.toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-    
-    // 1. Получаем токен из хранилища (localStorage/Cookies/Store)
-    const token = localStorage.getItem('token') 
-
-    // 2. Исправляем путь на /notes/ (согласно вашему FastAPI)
-    const res = await fetch(`api/notes/?date=${dateStr}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
-      }
-    })
-    
-    if (!res.ok) {
-        if (res.status === 401) console.error('Пользователь не авторизован');
-        throw new Error(`HTTP ${res.status}`);
-    }
-    
-    notes.value = await res.json()
-  } catch (error) {
-    console.error('Ошибка загрузки заметок:', error)
-    notes.value = [] // Очищаем список при ошибке
-  } finally {
-    isLoading.value = false
-  }
-}
-
-
-// Обработка кнопки "Назад" на Android
+// Обработка кнопки "Назад"
 const registerBackButton = () => {
   if (backBtnListener) return
   backBtnListener = App.addListener('backButton', (e) => {
@@ -168,21 +123,18 @@ const registerBackButton = () => {
   })
 }
 
-const unregisterBackButton = async () => {
+const unregisterBackButton = () => { 
   if (backBtnListener) {
-    await backBtnListener.remove()
+    backBtnListener.remove() 
     backBtnListener = null
   }
 }
 
 // Lifecycle
 onMounted(() => {
-  // Загружаем заметки при монтировании компонента
-  fetchNotes()
-  
-  // Если модальное окно уже открыто, регистрируем кнопку назад
   if (props.modelValue) {
     registerBackButton()
+    store.fetchNotes(props.date)
   }
 })
 
@@ -190,20 +142,20 @@ onUnmounted(() => {
   unregisterBackButton()
 })
 
-// Следим за открытием/закрытием модального окна
+// Следим за открытием
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     registerBackButton()
-    fetchNotes() 
+    store.fetchNotes(props.date)
   } else {
     unregisterBackButton()
   }
 })
 
-// Следим за изменением даты, чтобы обновить список
-watch(() => props.date, () => {
+// Следим за изменением даты
+watch(() => props.date, (newDate) => {
   if (props.modelValue) {
-    fetchNotes()
+    store.fetchNotes(newDate)
   }
 })
 </script>

@@ -1,17 +1,25 @@
 <template>
   <div class="auth-container">
-    <!-- Заголовок страницы (использует стили h1) -->
-    <h1>Добро пожаловать</h1>
+    <h1 :class="{ 'error-text': hasError }">Добро пожаловать!</h1>
     
     <p class="main-text">
       Пожалуйста, войдите в свой аккаунт, чтобы продолжить работу.
     </p>
 
-    <!-- Форма авторизации -->
-    <form class="form" @submit.prevent="handleLogin">
+    <!-- Используем isShaking для анимации, hasError для цвета -->
+    <form 
+      class="form" 
+      :class="{ 'error': hasError, 'shake-animation': isShaking }"
+      @submit.prevent="handleLogin"
+    >
       <h2>Авторизация</h2>
 
-      <!-- Поле Email -->
+      <transition name="fade">
+        <p v-if="hasError" class="error-message">
+          ❌ Неверный email или пароль
+        </p>
+      </transition>
+
       <div class="form-group">
         <label for="email">Email адрес</label>
         <input 
@@ -20,10 +28,10 @@
           v-model="email" 
           placeholder="name@example.com" 
           required
+          :class="{ 'input-error': hasError }"
         />
       </div>
 
-      <!-- Поле Пароль -->
       <div class="form-group">
         <label for="password">Пароль</label>
         <input 
@@ -32,18 +40,17 @@
           v-model="password" 
           placeholder="••••••••" 
           required
+          :class="{ 'input-error': hasError }"
         />
       </div>
 
-      <!-- Кнопка входа -->
       <button type="submit" class="submit-btn" :disabled="isLoading">
         {{ isLoading ? 'Вход...' : 'Войти' }}
       </button>
 
-      <!-- Дополнительный текст (ссылка на регистрацию) -->
-      <p style="margin-top: 24px; font-size: 0.95rem;">
+      <p class="register-link">
         Нет аккаунта? 
-        <a href="#" style="color: #3498db; text-decoration: none; font-weight: 600;">Зарегистрироваться</a>
+        <a href="#" class="link">Зарегистрироваться</a>
       </p>
     </form>
   </div>
@@ -52,19 +59,28 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { nextTick } from 'vue'; // 1. Импортируем nextTick
+
 const router = useRouter(); 
 
-// Состояние формы
 const email = ref<string>('');
 const password = ref<string>('');
 const isLoading = ref<boolean>(false);
+const hasError = ref<boolean>(false); 
+const isShaking = ref<boolean>(false);
 
-// Обработчик отправки формы
 const handleLogin = async () => {
   isLoading.value = true;
+  hasError.value = false;
+  isShaking.value = false; 
 
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/login`, {
+    const apiUrl = 'http://localhost:8000';
+    
+    // Эмуляция задержки сети (для теста)
+    await new Promise(r => setTimeout(r, 500));
+
+    const response = await fetch(`${apiUrl}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -73,82 +89,60 @@ const handleLogin = async () => {
       })
     });
 
-    if (!response.ok) {
-      throw new Error('Ошибка авторизации');
-    }
+    if (!response.ok) throw new Error();
 
     const data = await response.json();
-    
-    // Сохраняем токен
     localStorage.setItem('token', data.access_token);
-    router.push('/')
+    router.push('/');
+    
   } catch (error) {
-    alert('Неверный логин или пароль');
+    hasError.value = true;
+    
+    // 2. Логика перезапуска анимации
+    await nextTick(); // Ждем обновления DOM после hasError (если нужно)
+    
+    // Сбрасываем класс, чтобы убедиться, что его нет
+    isShaking.value = false;
+    
+    await nextTick(); // Ждем, пока Vue уберет класс из DOM
+    
+    // Теперь добавляем класс - браузер увидит изменение и запустит анимацию
+    isShaking.value = true;
+
+    // Убираем класс после завершения анимации
+    setTimeout(() => {
+      isShaking.value = false;
+    }, 400); // Должно совпадать с длительностью animation в CSS
+    
+    // Скрываем сообщение об ошибке позже
+    setTimeout(() => {
+      hasError.value = false;
+    }, 10000);
+    
   } finally {
     isLoading.value = false;
   }
 };
-
 </script>
 
 <style scoped>
-/* Глобальные переменные темы */
-:root {
-  /* Светлая тема по умолчанию */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --text-primary: #212529;
-  --text-secondary: #6c757d;
-  --border-color: #dee2e6;
-  --card-bg: #ffffff;
-  --button-bg: linear-gradient(135deg, #3498db, #2ecc71);
-  --heading-color: #2c3e50;
-  --input-border: #e0e6ed;
-  --input-bg: #fafbfd;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #121212;
-    --bg-secondary: #1e1e24;
-    --text-primary: #ecf0f1;
-    --text-secondary: #bdc3c7;
-    --border-color: rgba(255, 255, 255, 0.1);
-    --card-bg: rgba(30, 30, 38, 0.7);
-    --button-bg: linear-gradient(135deg, #3498db, #2ecc71);
-    --heading-color: #ecf0f1;
-    --input-border: rgba(255, 255, 255, 0.15);
-    --input-bg: rgba(255, 255, 255, 0.05);
-  }
-}
-
-/* Общие стили */
-body {
+.auth-container {
   text-align: center;
-  margin: 0;
-  padding: 0vw clamp(3px, 10vw, 100px);
-  box-sizing: border-box;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color 0.3s, color 0.3s;
-}
-
-/* Заголовки */
-h1,
-.form h2 {
-  color: var(--heading-color);
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  font-family: inherit;
-  margin: 2rem auto 1.5rem;
-  position: relative;
-  text-align: center;
+  margin-top: 6rem;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 h1 {
   font-size: 2.5rem;
-  line-height: 1.2;
+  color: var(--heading-color, #2c3e50);
+  font-weight: 700;
+  margin-bottom: 1rem;
+  position: relative;
+  display: inline-block;
 }
 
 h1::after {
@@ -157,46 +151,34 @@ h1::after {
   width: 60px;
   height: 4px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
-  margin: 16px auto 0;
   border-radius: 2px;
 }
 
-.form h2 {
-  font-size: 28px;
-  margin-bottom: 32px;
-  margin-top: 0; /* Сброс отступа для заголовка внутри формы */
-}
-
-/* Текстовые абзацы */
-p {
-  font-size: 1.125rem;
-  line-height: 1.6;
-  font-weight: 400;
-  max-width: 700px;
-  margin: 0 auto 1.5rem;
-  opacity: 0.9;
-  transition: opacity 0.2s;
-}
-
-p:hover {
-  opacity: 1;
+h1.error-text::after {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+  transition: background 0.3s ease;
 }
 
 .main-text {
-  margin-bottom: 2rem;
+  font-size: 1.125rem;
+  color: var(--text-secondary, #6c757d);
+  max-width: 600px;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
 }
 
-/* Форма */
 .form {
+  width: 100%;
   max-width: 520px;
-  margin: 48px auto;
-  padding: 36px;
-  background: var(--card-bg);
+  padding: 22px;
+  background: var(--card-bg, #ffffff);
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: hidden;
-  text-align: left; /* Выравнивание контента формы по левому краю */
+  text-align: left;
+  box-sizing: border-box;
+  transition: box-shadow 0.3s ease;
 }
 
 .form::before {
@@ -207,63 +189,79 @@ p:hover {
   right: 0;
   height: 4px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
+  transition: background 0.3s ease;
+  z-index: 10;
+}
+
+.form.error::before {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.form h2 {
+  font-size: 1.75rem;
+  color: var(--heading-color, #2c3e50);
+  margin: 0 0 22px 0;
+  text-align: center;
 }
 
 .form-group {
-  margin-bottom: 24px;
+  margin-bottom: 10px;
+  min-height: 90px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.3px;
+  color: var(--text-secondary, #6c757d);
 }
 
-.form-group input,
-.form-group textarea {
+.form-group input {
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid var(--input-border);
-  border-radius: 10px;
-  font-size: 16px;
-  color: var(--text-primary);
-  background-color: var(--input-bg);
-  transition: all 0.3s ease;
+  padding: 12px 16px;
+  border: 1px solid var(--input-border, #dee2e6);
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--text-primary, #212529);
+  background-color: var(--input-bg, #f8f9fa);
+  transition: all 0.2s ease;
   outline: none;
-  font-family: inherit;
-  box-sizing: border-box; /* Важно для input */
+  box-sizing: border-box;
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
+.form-group input:focus {
   border-color: #3498db;
-  background-color: var(--bg-primary);
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+  background-color: var(--bg-primary, #fff);
 }
 
-/* Кнопка отправки */
+.form.error .form-group input {
+  border-color: #e74c3c;
+  background-color: rgba(231, 76, 60, 0.05);
+}
+
+.form.error .form-group input:focus {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.15);
+}
+
 .submit-btn {
   width: 100%;
   padding: 14px;
   background: linear-gradient(135deg, #3498db, #2980b9);
   color: white;
   border: none;
-  border-radius: 10px;
-  font-size: 16px;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  letter-spacing: 0.5px;
+  transition: transform 0.2s, box-shadow 0.2s;
   box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
-  font-family: inherit;
   margin-top: 10px;
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2980b9, #2573a7);
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
 }
@@ -278,25 +276,91 @@ p:hover {
   transform: none;
 }
 
-/* Адаптивность */
-@media (max-width: 900px) {
-  .auth-container{
-    margin-top: 7rem;
-  }
+.register-link {
+  margin-top: 24px;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #6c757d);
+  text-align: center;
+}
+
+.link {
+  color: #3498db;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.link:hover {
+  color: #2980b9;
+  text-decoration: underline;
+}
+
+.error-message-placeholder {
+  color: transparent;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 500;
+  border-radius: 6px;
+  margin: 0 0 20px 0;
+  min-height: 1.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+.error-message {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 500;
+  border-radius: 6px;
+  margin: 8px 0 20px 0;
+  min-height: 1.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 70px;
+  left: 36px;
+  right: 36px;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.shake-animation {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+@media (max-width: 600px) {
   .form {
-    padding: 1rem;
-  }
-
-  body {
-    margin-top: 1rem;
-  }
-
-  .form h2 {
-    font-size: 24px;
+    padding: 24px 20px;
   }
   
   h1 {
     font-size: 2rem;
+  }
+
+  .error-message {
+    left: 20px;
+    right: 20px;
+    top: 64px;
   }
 }
 </style>

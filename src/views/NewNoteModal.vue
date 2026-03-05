@@ -18,6 +18,7 @@
 
         <div class="editor-area">
           <input 
+            maxlength="15"
             v-model="localTitle"
             class="note-title-input"
             :placeholder="t('NewNote.title_placeholder')"
@@ -36,7 +37,7 @@
 
         <div class="editor-actions">
           <button class="submit-btn save-btn" @click="saveNote">{{t("NewNote.save")}}</button>
-          <button v-if="isEditing" class="submit-btn delete-btn" @click="deleteNote">Удалить</button>
+          <button v-if="isEditing" class="submit-btn delete-btn" @click="deleteNote">{{t("NewNote.delete")}}</button>
         </div>
       </div>
     </div>
@@ -44,59 +45,205 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n';
+import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useNotesStore } from '../components/notesStore' // Проверьте путь
+import { apiRequest } from '@/api/apiClient' 
 
-const { t } = useI18n();
+const { t } = useI18n()
+const notesStore = useNotesStore()
 
 const props = defineProps({
   modelValue: Boolean,
-  content: { type: String, default: '' },
-  isEditing: { type: Boolean, default: false }
+  note: { type: Object, default: null },
+  content: { type: String, default: '' }, // Лишний проп? У вас есть localContent
+  isEditing: { type: Boolean, default: false },
+  selectedDate: { type: [String, Date], default: null } 
 })
 
-const emit = defineEmits(['update:modelValue', 'create', 'edit', 'delete'])
+const emit = defineEmits(['update:modelValue'])
 
-// Локальное состояние
-const localContent = ref(props.content)
+const localTitle = ref('')
+const localContent = ref('')
 const isDirty = ref(false)
+const isLoading = ref(false)
 
-// Сброс при закрытии (опционально)
-watch(() => props.modelValue, (isOpen) => {
-  if (!isOpen) {
-    localContent.value = props.content
-    isDirty.value = false
+// Функция для безопасного заполнения полей
+const fillFormFromNote = (noteObj) => {
+  if (!noteObj) return
+  
+  // Используем nextTick, чтобы убедиться, что DOM и реактивность готовы
+  nextTick(() => {
+    localTitle.value = noteObj.title || ''
+    localContent.value = noteObj.content || ''
+    // Сбрасываем флаг загрязнения, так как это "чистое" состояние при загрузке
+    isDirty.value = false 
+  })
+}
+
+// Следим за открытием модального окна ИЛИ изменением заметки
+watch(
+  () => [props.modelValue, props.note, props.isEditing], 
+  ([isOpen, newNote, isEdit]) => {
+    if (isOpen && isEdit && newNote) {
+      // Если окно открыто, режим редактирования и есть заметка -> заполняем
+      fillFormFromNote(newNote)
+    } else if (!isOpen) {
+      isDirty.value = false
+      isLoading.value = false
+    } else if (isOpen && !isEdit) {
+      localTitle.value = ''
+      localContent.value = ''
+      isDirty.value = false
+    }
+  },
+  { immediate: true } // Запустить сразу при монтировании, если уже открыто
+)
+
+// Вспомогательная функция: получение даты
+const getInDayValue = () => {
+  if (props.isEditing && props.note) {
+    const originalDate = props.note.in_day
+    if (originalDate) {
+      if (typeof originalDate === 'string') {
+        return originalDate.split('T')[0]
+      }
+      if (originalDate instanceof Date) {
+        const year = originalDate.getFullYear()
+        const month = String(originalDate.getMonth() + 1).padStart(2, '0')
+        const day = String(originalDate.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      return originalDate
+    }
   }
-})
 
-const saveNote = () => {
+  // Для новой заметки берем из selectedDate
+  if (props.selectedDate) {
+    if (typeof props.selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(props.selectedDate)) {
+      return props.selectedDate
+    }
+    if (props.selectedDate instanceof Date && !isNaN(props.selectedDate.getTime())) {
+      const year = props.selectedDate.getFullYear()
+      const month = String(props.selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(props.selectedDate.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+  }
+
+  // Fallback: сегодня
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const saveNote = async () => {
+  const title = localTitle.value.trim()
   const content = localContent.value.trim()
-  if (!content) {
-    alert('Заметка не может быть пустой')
+  
+  if (!content && !title) {
+    alert(t('NewNote.empty_error'))
     return
   }
 
-  if (props.isEditing) {
-    emit('edit', content)
-  } else {
-    emit('create', content)
-  }
-  emit('update:modelValue', false)
-}
+  const inDayValue = getInDayValue()
+  isLoading.value = true
+  
+  try {
+    let savedNote
 
-const deleteNote = () => {
-  if (confirm('Удалить заметку?')) {
-    emit('delete')
+    if (props.isEditing && props.note?.id) {
+      // === РЕДАКТИРОВАНИЕ ===
+      const payload = { 
+        title, 
+        content
+      }
+
+      const response = await apiRequest(`/api/notes/${props.note.id}`, {
+        method: 'PUT',
+        body: payload
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Ошибка обновления')
+      }
+
+      // Читаем тело ответа ТОЛЬКО ОДИН РАЗ здесь
+      savedNote = await response.json()
+      
+      notesStore.updateNoteInState(savedNote)
+      
+    } else {
+      // === СОЗДАНИЕ ===
+      const payload = { 
+        title, 
+        content,
+        in_day: inDayValue 
+      }
+
+      const response = await apiRequest('/api/notes/', {
+        method: 'POST',
+        body: payload
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Ошибка создания')
+      }
+
+      // Читаем тело ответа ТОЛЬКО ОДИН РАЗ здесь
+      savedNote = await response.json()
+      
+      notesStore.addNoteToState(savedNote)
+    }
+    
     emit('update:modelValue', false)
+    
+  } catch (error) {
+    console.error('Ошибка сохранения:', error)
+    
+    // Обработка специфических ошибок
+    if (error.message.includes('Unauthorized') || error.message.includes('Сессия')) {
+       // Логика выхода уже есть в store или apiClient
+    } else {
+       alert(error.message || t('NewNote.save_error'))
+    }
+  } finally {
+    isLoading.value = false
   }
 }
 
-// Заглушки для форматирования (реализуйте позже)
-const toggleBold = () => console.log('Bold')
-const toggleItalic = () => console.log('Italic')
-const toggleList = () => console.log('List')
-const insertImage = () => console.log('Insert image')
-const recordVoice = () => console.log('Record voice')
+const deleteNote = async () => {
+  if (!props.note?.id) return
+  if (!confirm(t('NewNote.delete_confirm'))) return
+  
+  isLoading.value = true
+  try {
+    const token = localStorage.getItem('token')
+    // Используйте apiRequest и для DELETE:
+    const res = await apiRequest(`/api/notes/${props.note.id}`, {
+      method: 'DELETE'
+    })
+        
+    if (!res.ok) throw new Error('Failed to delete')
+    
+    notesStore.removeNoteFromState(props.note.id)
+    emit('update:modelValue', false)
+  } catch (error) {
+    console.error('Ошибка удаления:', error)
+    alert(t('NewNote.delete_error'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Заглушки
+const toggleBold = () => document.execCommand?.('bold')
+const toggleItalic = () => document.execCommand?.('italic')
+const toggleList = () => document.execCommand?.('insertUnorderedList')
 </script>
 
 <style scoped>

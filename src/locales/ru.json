@@ -6,7 +6,8 @@
       "home":"Главная",
       "profile":"Профиль",
       "settings":"Настройки",
-      "help":"Помощь"
+      "help":"Помощь",
+      "login":"Авторизация"
    },
    "Calendar":{
       "name":"Сегодня",
@@ -43,6 +44,7 @@
       "newNote":"Новая заметка",
       "start_typing":"Так и запишем...",
       "save": "Сохранить",
-      "title_placeholder": "Заголовок"
+      "title_placeholder": "Заголовок",
+      "delete":"Удалить"
    }
 }
