@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+
 export interface Note {
   id: number
   user_id: number

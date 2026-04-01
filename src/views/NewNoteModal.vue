@@ -8,13 +8,13 @@
           <h1 class="editor-title">{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
         </header>
 
-        <div class="toolbar">
+        <!-- <div class="toolbar">
           <button class="stdBtn" @click="toggleBold">B</button>
           <button class="stdBtn" @click="toggleItalic">I</button>
           <button class="stdBtn" @click="toggleList">⋮</button>
           <button class="stdBtn" @click="insertImage">📷</button>
           <button class="stdBtn" @click="recordVoice">🎤</button>
-        </div>
+        </div> -->
 
         <div class="editor-area">
           <input 
@@ -26,13 +26,18 @@
             :disabled="isLoading"
           />
           
-          <textarea 
-            v-model="localContent"
-            class="note-textarea"
-            :placeholder="t('NewNote.start_typing')"
-            @input="isDirty = true"
-            :disabled="isLoading"
-          ></textarea>
+        <MdEditor 
+          v-model="localContent" 
+          language="ru-RU" 
+          :preview="false"
+          @on-focus="handleEditorFocus"
+          @on-blur="handleEditorBlur"
+          @on-upload-img="onUploadImg"
+          :toolbars="['bold', 'italic', 'strike', 'unorderedList', 'orderedList', 'image', 'link', 'code', 'preview', 'fullscreen']"
+          :placeholder="t('NewNote.start_typing')"
+          class="note-md-editor"
+          :disabled="isLoading"
+        />
         </div>
 
         <div class="editor-actions">
@@ -49,7 +54,18 @@ import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useNotesStore } from '../components/notesStore' // Проверьте путь
 import { apiRequest } from '@/api/apiClient' 
+import { MdEditor, config } from 'md-editor-v3'
+import RU_LOCALE from '../locales/md-locale.ts'
+import 'md-editor-v3/lib/style.css'
 
+config({
+  editorConfig: {
+    languageUserDefined: {
+      'ru-RU': RU_LOCALE,
+      'en': "default"
+    }
+  }
+})
 const { t } = useI18n()
 const notesStore = useNotesStore()
 
@@ -67,6 +83,33 @@ const localTitle = ref('')
 const localContent = ref('')
 const isDirty = ref(false)
 const isLoading = ref(false)
+
+// ... после существующих ref
+const isPreview = ref(true)
+
+const handleEditorFocus = () => {
+  isPreview.value = false
+}
+
+// Опционально: возврат в preview при потере фокуса
+const handleEditorBlur = () => {
+  isPreview.value = true
+}
+
+// Обработчик загрузки изображений (базовый)
+const onUploadImg = async (files, callback) => {
+  const res = await Promise.all(
+    Array.from(files).map(file => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target.result)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+    })
+  )
+  callback(res)
+}
 
 // Функция для безопасного заполнения полей
 const fillFormFromNote = (noteObj) => {
@@ -262,6 +305,56 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
   overflow-y: auto;
 }
 
+.note-md-editor {
+  border-radius: 12px;
+  flex: none;      /* ЗАПРЕЩАЕМ растягиваться через flex */
+  display:   flex;
+  height: 432px;
+  width: 100%;
+  margin-bottom: 0; 
+  flex-direction: column;
+}
+
+.note-md-editor :deep(.md-editor) {
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  background-color: var(--input-bg);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-md-editor :deep(.md-editor-content) {
+  flex: 1;
+  min-height: 0;
+}
+
+.note-md-editor :deep(.md-editor-preview),
+.note-md-editor :deep(.md-editor-input) {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.note-md-editor :deep(.md-editor-toolbar) {
+  display: flex;
+  justify-content: center;  
+  margin: 0 4px;
+  padding: 10px 5px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.note-md-editor :deep(.md-editor-icon) {
+  width: 28px !important;  /* Было около 20px */
+  height: 28px !important;
+  color: var(--text-secondary);
+}
+
+.note-md-editor :deep(.md-editor-icon:hover) {
+  color: var(--text-primary);
+}
+
+
 .note-modal-overlay {
   position: fixed;
   top: 0;
@@ -279,22 +372,21 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
 .note-editor {
   background: var(--card-bg);
   border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); /* как в NotesModal */
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   width: 100%;
   max-width: 800px;
-  /* Занимаем всю высоту с отступами сверху/снизу */
-  height: calc(100vh - 4rem); /* 2rem сверху + 2rem снизу = 4rem */
-  margin: 2rem 1rem; /* эмулируем padding оверлея */
+  height: 90vh; 
+  margin: 2rem 1rem;
+  
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* прокрутка будет внутри */
+  overflow: hidden; 
 }
 
 /* Остальное без изменений, но убедитесь: */
 .editor-area {
   flex: 1;
-  padding: 10px;
-  padding-inline: 30px;
+  padding: 10px 16px 0px 16px; 
   display: flex;
   align-items: center;   
   text-align: center;
@@ -404,35 +496,8 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
   background: var(--bg-secondary);
 }
 
-.note-textarea {
-  flex: 1;
-  width: 100%;
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--input-border);
-  border-radius: 12px;
-  font-size: 16px;
-  color: var(--text-primary);
-  background-color: var(--input-bg);
-  outline: none;
-  font-family: inherit;
-  resize: none;
-  min-height: 200px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.note-textarea:focus {
-  border-color: #3498db;
-  background-color: var(--bg-primary);
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
-}
-
 .editor-actions {
-  padding: 16px;
+  padding: 16px 16px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -476,14 +541,36 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
   background: linear-gradient(135deg, #c0392b, #a93226);
 }
 
-/* Responsive adjustments */
+/* Выравнивание текста в самом редакторе (область ввода) */
+.note-md-editor :deep(.md-editor-input-wrapper),
+.note-md-editor :deep(.md-editor-input) {
+  text-align: left;
+}
+
+/* Выравнивание текста в окне предпросмотра (Preview) */
+.note-md-editor :deep(.md-editor-preview) {
+  text-align: left;
+}
+
 @media (max-width: 900px) {
   .note-editor {
     border-radius: 12px;
+    height: 95vh; /* На мобилках лучше занять чуть больше высоты */
+    margin: 10px;  /* Уменьшаем внешние поля, чтобы было больше места */
   }
   
+  /* Уменьшаем высоту самого редактора, чтобы влезли кнопки снизу */
+  .note-md-editor {
+    height: 522px; 
+  }
+
   .editor-header h1 {
     font-size: 1.5rem;
+  }
+  
+  /* Уменьшаем боковые отступы, чтобы редактор не был слишком узким */
+  .editor-area {
+    padding: 10px 12px 0 12px;
   }
   
   .toolbar {
@@ -495,10 +582,6 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
     height: 36px;
     font-size: 1rem;
   }
-
-  
-  .note-textarea {
-    min-height: 160px;
-  }
 }
+
 </style>

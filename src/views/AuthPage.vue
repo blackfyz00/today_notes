@@ -1,4 +1,5 @@
 <template>
+  <LoadingOverlay :show="snapshot.matches('loading')" />
   <div class="auth-container">
     <h1 :class="{ 'error-text': hasError }">Добро пожаловать!</h1>
     
@@ -44,8 +45,9 @@
         />
       </div>
 
-      <button type="submit" class="submit-btn" :disabled="isLoading">
-        {{ isLoading ? 'Вход...' : 'Войти' }}
+      <!-- Теперь кнопка блокируется, когда машина в состоянии загрузки -->
+      <button type="submit" class="submit-btn" :disabled="snapshot.matches('loading')">
+        {{ snapshot.matches('loading') ? 'Вход...' : 'Войти' }}
       </button>
 
       <p class="register-link">
@@ -60,7 +62,11 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { nextTick } from 'vue'; // 1. Импортируем nextTick
+import LoadingOverlay from '../components/loadingOverlay.vue';
+import { useMachine } from '@xstate/vue';
+import { loadingMachine } from '../composables/xstate.ts';
 
+const { snapshot, send } = useMachine(loadingMachine);
 const router = useRouter(); 
 
 const email = ref<string>('');
@@ -70,14 +76,16 @@ const hasError = ref<boolean>(false);
 const isShaking = ref<boolean>(false);
 
 const handleLogin = async () => {
-  isLoading.value = true;
   hasError.value = false;
   isShaking.value = false; 
+
+  // 1. Переводим машину в загрузку (LoadingOverlay покажется сам)
+  send({ type: 'FETCH' });
 
   try {
     const apiUrl = 'http://localhost:8000';
     
-    // Эмуляция задержки сети (для теста)
+    // Эмуляция задержки
     await new Promise(r => setTimeout(r, 500));
 
     const response = await fetch(`${apiUrl}/login`, {
@@ -93,34 +101,24 @@ const handleLogin = async () => {
 
     const data = await response.json();
     localStorage.setItem('token', data.access_token);
+    
+    // 2. Успех
+    send({ type: 'SUCCESS' });
     router.push('/');
     
   } catch (error) {
+    // 3. ОШИБКА: Обязательно уведомляем машину, чтобы скрыть лоадер!
+    send({ type: 'ERROR' });
+    
     hasError.value = true;
     
-    // 2. Логика перезапуска анимации
-    await nextTick(); // Ждем обновления DOM после hasError (если нужно)
-    
-    // Сбрасываем класс, чтобы убедиться, что его нет
+    // Перезапуск анимации тряски
     isShaking.value = false;
-    
-    await nextTick(); // Ждем, пока Vue уберет класс из DOM
-    
-    // Теперь добавляем класс - браузер увидит изменение и запустит анимацию
+    await nextTick();
     isShaking.value = true;
 
-    // Убираем класс после завершения анимации
-    setTimeout(() => {
-      isShaking.value = false;
-    }, 400); // Должно совпадать с длительностью animation в CSS
-    
-    // Скрываем сообщение об ошибке позже
-    setTimeout(() => {
-      hasError.value = false;
-    }, 10000);
-    
-  } finally {
-    isLoading.value = false;
+    setTimeout(() => { isShaking.value = false; }, 400);
+    setTimeout(() => { hasError.value = false; }, 10000);
   }
 };
 </script>

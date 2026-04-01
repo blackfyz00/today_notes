@@ -124,7 +124,7 @@ onMounted(() => {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 50; /* Повысили z-index */
+  z-index: 3; /* Повысили z-index */
   transition: width 0.3s ease, transform 0.3s ease;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border-radius: 0 16px 16px 0;
@@ -141,7 +141,7 @@ onMounted(() => {
   height: 100vh;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
-  z-index: 40; /* Ниже сайдбара, но выше контента */
+  z-index: 2; /* Ниже сайдбара, но выше контента */
   cursor: pointer;
   animation: fadeIn 0.2s ease;
 }

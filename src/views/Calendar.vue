@@ -1,5 +1,6 @@
 <!-- src/views/Calendar.vue -->
 <template>
+  <LoadingOverlay :show="snapshot.matches('loading')" />
   <div class="main-calendar">
     <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
     
@@ -78,7 +79,11 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useNotesStore } from '../components/notesStore.ts'
 import { useCalendarDates as useCalendar } from '../composables/useCalendar'
-const { currentDate, days, prevMonth, nextMonth, formatDateKey } = useCalendar()
+
+import LoadingOverlay from '../components/loadingOverlay.vue'
+import { useMachine } from '@xstate/vue';
+import { loadingMachine } from '../composables/xstate';
+
 // Компоненты
 import NotesModalView from './NotesModalView.vue'
 import MonthPickerModal from './MonthPickerModal.vue'
@@ -86,18 +91,18 @@ import NewNoteModal from './NewNoteModal.vue'
 
 import { useCalendarModals } from '../composables/useCalendarModals'
 
+const { currentDate, days, prevMonth, nextMonth  } = useCalendar()
+const { snapshot, send } = useMachine(loadingMachine);
 const {
   isNotesOpen,
   isNewNoteOpen,
   isMonthPickerOpen,
   selectedDate,
   selectedNote,
-  selectedDateStr,
   openNotesForDay,
   openNewNoteEditor,
   handleEditNote,
   openMonthPicker,
-  getDateKeySafe
 } = useCalendarModals()
 
 const { t } = useI18n()
@@ -125,16 +130,23 @@ const onToday = () => {
   currentDate.value = new Date()
 }
 
-const loadStats = () => {
-  if (currentDate.value) {
-    notesStore.fetchStats(currentDate.value)
+const loadStats = async () => {
+  send({ type: 'FETCH' }); 
+  try {
+    // Вызываем метод стора
+    await notesStore.fetchStats();
+    send({ type: 'SUCCESS' });
+  } catch (err) {
+    send({ type: 'ERROR' }); 
   }
-}
+};
+
 
 onMounted(loadStats)
+
 watch(currentDate, (newDate) => {
   if (newDate) {
-    notesStore.fetchStats(newDate)
+    loadStats(); // Используем обертку с send()
   }
 })
 

@@ -1,6 +1,7 @@
 <!-- src/views/NotesModalView.vue -->
 <template>
   <Teleport to="body">
+    <LoadingOverlay :show="snapshot.matches('loading')" />
     <div v-if="modelValue" class="notes-modal-overlay" @click="$emit('update:modelValue', false)">
       <div class="notes-modal-content" @click.stop>
         
@@ -19,13 +20,8 @@
           </button>
         </div>
 
-        <!-- Состояние загрузки (из стора) -->
-        <div v-if="store.isLoading" class="loading">
-          <p>Загрузка...</p>
-        </div>
-
         <!-- Пустое состояние -->
-        <div v-else-if="currentNotes.length === 0" class="empty-state">
+        <div v-if="currentNotes.length === 0" class="empty-state">
           <div class="empty-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #3498db;">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -66,6 +62,13 @@ import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { App } from '@capacitor/app'
 import { useNotesStore } from '../components/notesStore' // Импорт стора
+
+import LoadingOverlay from '../components/loadingOverlay.vue'
+import { useMachine } from '@xstate/vue';
+import { loadingMachine } from '../composables/xstate';
+
+const { snapshot, send } = useMachine(loadingMachine);
+
 
 const { t, locale } = useI18n()
 const store = useNotesStore() // Инициализация стора
@@ -123,6 +126,17 @@ const registerBackButton = () => {
   })
 }
 
+const loadNotes = async (date) => {
+  if (!date) return;
+  send({ type: 'FETCH' }); // Показываем глобальный лоадер
+  try {
+    await store.fetchNotes(date);
+    send({ type: 'SUCCESS' });
+  } catch (err) {
+    send({ type: 'ERROR' });
+  }
+};
+
 const unregisterBackButton = () => { 
   if (backBtnListener) {
     backBtnListener.remove() 
@@ -130,34 +144,28 @@ const unregisterBackButton = () => {
   }
 }
 
-// Lifecycle
 onMounted(() => {
   if (props.modelValue) {
-    registerBackButton()
-    store.fetchNotes(props.date)
+    registerBackButton();
+    loadNotes(props.date); // С лоадером
   }
-})
+});
 
-onUnmounted(() => {
-  unregisterBackButton()
-})
-
-// Следим за открытием
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
-    registerBackButton()
-    store.fetchNotes(props.date)
+    registerBackButton();
+    loadNotes(props.date); // С лоадером
   } else {
-    unregisterBackButton()
+    unregisterBackButton();
   }
-})
+});
 
-// Следим за изменением даты
 watch(() => props.date, (newDate) => {
   if (props.modelValue) {
-    store.fetchNotes(newDate)
+    loadNotes(newDate); // С лоадером
   }
-})
+});
+
 </script>
 
 <style scoped>
