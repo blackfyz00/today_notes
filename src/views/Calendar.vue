@@ -1,74 +1,114 @@
 <!-- src/views/Calendar.vue -->
 <template>
-  <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
-  <div class="mobile-menu-toggle" @click="openNotesForDay(new Date())">+</div>
+  <LoadingOverlay :show="snapshot.matches('loading')" />
+  <div class="main-calendar">
+    <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
+    
+    <!-- Кнопка быстрого создания -->
+    <div class="mobile-menu-toggle" @click="openNotesForDay(new Date())">+</div>
 
-  <div class="preHead">
-    <div class="stdBtn" @click="prevMonth">←</div>
-    <div class="CalendBtn" @click="openMonthPicker">{{ `${thisMonth} ${currentDate.getFullYear()}` }}</div>
-    <div class="stdBtn" @click="nextMonth">→</div>
-  </div>
-
-  <div class="CalendarHead">
-    <span v-for="day in nameDays" :key="day">{{ day }}</span>
-  </div>
-
-  <div class="CalendarBody">
-    <div
-      v-for="(day, index) in days"
-      :key="index"
-      class="day-cell"
-      :class="{
-        'other-month': day.isOtherMonth,
-        'today': day.isToday,
-        'weekend': day.isWeekend
-      }"
-      @click="openNotesForDay(day.fullDate)"
-    >
-      {{ day.date }}
+    <div class="preHead">
+      <div class="stdBtn" @click="prevMonth">←</div>
+      <div class="CalendBtn" @click="openMonthPicker">
+        {{ `${thisMonth} ${currentDate.getFullYear()}` }}
+      </div>
+      <div class="stdBtn" @click="nextMonth">→</div>
     </div>
+
+    <div class="CalendarHead">
+      <span v-for="day in nameDays" :key="day">{{ day }}</span>
+    </div>
+
+    <div class="CalendarBody">
+      <div
+        v-for="(day, index) in days"
+        :key="index"
+        class="day-cell"
+        :class="{
+          'other-month': day.isOtherMonth,
+          'today': day.isToday,
+          'weekend': day.isWeekend
+        }"
+        @click="openNotesForDay(day.fullDate)"
+      >
+        {{ day.date }}
+
+        <!-- Индикатор наличия заметок -->
+        <span 
+          v-if="notesStore.stats && notesStore.stats[day.dateKey] > 0" 
+          class="note-dot"
+          :title="`${notesStore.stats[day.dateKey]} заметок`"
+        ></span>
+      </div>
+    </div>
+
+    <!-- Модалка выбора месяца -->
+    <MonthPickerModal
+      v-model="isMonthPickerOpen"
+      :current-date="currentDate"
+      @select="onMonthSelect"
+    />
+
+    <!-- Модальное окно списка заметок -->
+    <NotesModalView
+      v-model="isNotesOpen"
+      :date="selectedDate"
+      @create-editor="openNewNoteEditor" 
+      @edit-note="handleEditNote"
+    />
+
+    <!-- Модальное окно редактора -->
+    <NewNoteModal
+      v-model="isNewNoteOpen"
+      :is-editing="!!selectedNote" 
+      :note="selectedNote"
+      :selected-date="selectedDate"
+      @update:model-value="(val) => { 
+          isNewNoteOpen = val; 
+          if (!val && selectedDate) {
+            // Больше не нужно вызывать локальную fetchStats()
+            notesStore.fetchStats(selectedDate);
+          }
+      }"
+    />
   </div>
-
-  <!-- Модалка выбора месяца -->
-  <MonthPickerModal
-    v-model="isMonthPickerOpen"
-    :current-date="currentDate"
-    @select="onMonthSelect"
-  />
-
-  <!-- Модальное окно заметок -->
-  <NotesModalView
-    v-model="isNotesOpen"
-    :date="selectedDate"
-    @create-editor="openNewNoteEditor" 
-    @edit="handleEdit"
-  />
-
-  <NewNoteModal
-  v-model="isNewNoteOpen"
-  :is-editing="false"
-  @create="handleCreateNote"
-  @update:modelValue="isNewNoteOpen = $event"
-  />
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useNotesStore } from '../components/notesStore.ts'
+import { useCalendarDates as useCalendar } from '../composables/useCalendar'
+
+import LoadingOverlay from '../components/loadingOverlay.vue'
+import { useMachine } from '@xstate/vue';
+import { loadingMachine } from '../composables/xstate';
+
+// Компоненты
 import NotesModalView from './NotesModalView.vue'
 import MonthPickerModal from './MonthPickerModal.vue'
 import NewNoteModal from './NewNoteModal.vue'
 
+import { useCalendarModals } from '../composables/useCalendarModals'
+
+const { currentDate, days, prevMonth, nextMonth  } = useCalendar()
+const { snapshot, send } = useMachine(loadingMachine);
+const {
+  isNotesOpen,
+  isNewNoteOpen,
+  isMonthPickerOpen,
+  selectedDate,
+  selectedNote,
+  openNotesForDay,
+  openNewNoteEditor,
+  handleEditNote,
+  openMonthPicker,
+} = useCalendarModals()
+
 const { t } = useI18n()
+const notesStore = useNotesStore()
 
-// === Состояние модалки ===
-const isNotesOpen = ref(false)
-const isNewNoteOpen = ref(false)  
-const isMonthPickerOpen = ref(false) 
-const selectedDate = ref(new Date())
-
-// === Календарь ===
-const currentDate = ref(new Date())
+// === Состояние UI ===
 const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
@@ -81,87 +121,35 @@ const nameDays = computed(() => {
   return dayKeys.map(key => t(`Calendar.days.${key}`))
 })
 
-// Генерация дней с полной датой
-const days = computed(() => {
-  const now = new Date()
-  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
-
-  const year = currentDate.value.getFullYear()
-  const month = currentDate.value.getMonth()
-
-  const firstDay = new Date(year, month, 1).getDay()
-  const startOffset = firstDay === 0 ? -6 : 1 - firstDay
-
-  const result = []
-  for (let i = 0; i < 42; i++) {
-    const date = new Date(year, month, startOffset + i)
-    const isCurrentMonth = date.getMonth() === month
-    const dayKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-    const dayOfWeek = i % 7
-
-    result.push({
-      date: date.getDate(),
-      isOtherMonth: !isCurrentMonth,
-      isToday: dayKey === todayKey,
-      isWeekend: dayOfWeek === 5 || dayOfWeek === 6,
-      fullDate: date // ← сохраняем полную дату!
-    })
-  }
-  return result
-})
-
-// === Обработка клика по дню ===
-const openNotesForDay = (date) => {
-  if (!date) return
-  // Не открываем, если это "другой месяц" — опционально
-  // if (date.getMonth() !== currentDate.value.getMonth()) return
-
-  selectedDate.value = new Date(date) // важно: копия, чтобы не мутировать
-  isNotesOpen.value = !isNotesOpen.value
-}
-
-// === Навигация ===
-const prevMonth = () => {
-  const newDate = new Date(currentDate.value)
-  newDate.setMonth(newDate.getMonth() - 1)
-  currentDate.value = newDate
-}
-
-const openNewNoteEditor = () => {
-  isNewNoteOpen.value = !isNewNoteOpen.value
-  // Опционально: можно не закрывать список заметок
-  // isNotesOpen.value = false   // ← если хотите закрывать — оставьте
-}
-
-const nextMonth = () => {
-  const newDate = new Date(currentDate.value)
-  newDate.setMonth(newDate.getMonth() + 1)
-  currentDate.value = newDate
-}
-
-const openMonthPicker = () => {
-  isMonthPickerOpen.value = !isMonthPickerOpen.value
-}
-
 const onMonthSelect = (newDate) => {
   currentDate.value = newDate
+  isMonthPickerOpen.value = false
 }
 
 const onToday = () => {
   currentDate.value = new Date()
 }
 
-// === Обработчики событий из модалки ===
-const handleCreateNote = (note) => {
-  console.log('Создать заметку:', note)
-  // Здесь можно вызвать API или обновить данные
-  isNotesOpen.value = false
-}
+const loadStats = async () => {
+  send({ type: 'FETCH' }); 
+  try {
+    // Вызываем метод стора
+    await notesStore.fetchStats();
+    send({ type: 'SUCCESS' });
+  } catch (err) {
+    send({ type: 'ERROR' }); 
+  }
+};
 
-const handleEditNote = (note) => {
-  console.log('Редактировать заметку:', note)
-  isNotesOpen.value = false
-}
+
+onMounted(loadStats)
+
+watch(currentDate, (newDate) => {
+  if (newDate) {
+    loadStats(); // Используем обертку с send()
+  }
+})
+
 </script>
 
 <style scoped>
@@ -272,6 +260,7 @@ h1::after {
 
 .day-cell {
   display: flex;
+  position: relative; 
   align-items: center;
   justify-content: center;
   height: 64px;
@@ -287,23 +276,33 @@ h1::after {
 }
 
 .day-cell:hover {
+  transform: scale(1.03);
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.day-cell:not(.today):hover {
   background: rgba(52, 152, 219, 0.08);
   border-color: rgba(52, 152, 219, 0.3);
-  transform: scale(1.03);
 }
 
-/* Дни из других месяцев */
-.other-month {
-  color: var(--text-secondary);
-  opacity: 0.7;
+.note-dot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  pointer-events: none; /* Чтобы точка не мешала клику по дню */
 }
 
-.other-month:hover {
-  background: var(--bg-secondary);
-  opacity: 1;
+/* Опционально: другой цвет для дней с заметками */
+.day-cell.today .note-dot {
+  background-color: #10b981;
 }
 
-/* Сегодняшний день */
 .today {
   background: linear-gradient(135deg, #3498db, #2ecc71);
   color: white;
@@ -314,6 +313,16 @@ h1::after {
 .today:hover {
   transform: scale(1.05);
   box-shadow: 0 6px 14px rgba(52, 152, 219, 0.4);
+}
+
+/* Дни из других месяцев */
+.other-month {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.other-month:hover {
+  opacity: 1;
 }
 
 /* Выходные дни */
@@ -331,14 +340,19 @@ h1::after {
 
 /* Адаптивность */
 @media (max-width: 900px) {
+
+  .main-calendar{
+    margin-top: 5rem;
+  }
+
   .mobile-menu-toggle {
     display: flex;
     position: fixed;
-    top: 42px;
+    top: 64px;
     right: 7vw;
+    width: 60px;
     z-index: 1;
-    width: 65px;
-    height: 65px;
+    height: 60px;
     border-radius: 50%;
     background: linear-gradient(90deg, #3498db, #2ecc71);
     color: white;

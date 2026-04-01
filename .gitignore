@@ -35,10 +35,12 @@ coverage
 # Vitest
 __screenshots__/
 
-.env
+/backend/.env
 /android
 /.vscode
 
 # my
 prompts.md
 api_test.xlsx
+
+/backend/app/__pycache__/

@@ -1,4 +1,10 @@
 <template>
+  <div 
+    v-if="isMenuOpen" 
+    class="sidebar-overlay" 
+    @click="closeMenu"
+  ></div>
+  
   <button 
     v-if="isMobile && !isMobileOpen" 
     class="mobile-menu-toggle"
@@ -8,6 +14,7 @@
     ☰
   </button>
   
+  <!-- САЙДБАР -->
   <div 
     class="sidebar" 
     :class="{ 
@@ -19,7 +26,8 @@
       <button @click="handleToggle" class="toggle-btn">
         {{ isMobile ? '✕' : (isCollapsed ? '☰' : '✕') }}
       </button>
-      <h2 v-if="!isCollapsed || isMobile">{{ $t('Menu.name') }}</h2>
+      <!-- Заголовок скрываем, если на десктопе свернуто -->
+      <h2 v-if="isMenuOpen">{{ $t('Menu.name') }}</h2>
     </div>
 
     <nav class="sidebar-nav">
@@ -30,8 +38,11 @@
             class="menu-link"
             @click="onMenuItemClick"
           >
-            <span class="icon">{{ item.icon }}</span>
-            <span v-if="!isCollapsed || isMobile" class="label">{{ item.name }}</span>
+            <span class="icon">
+              <img v-if="item.icon.includes('http')" :src="item.icon" class="icon-img" alt="" />
+              <template v-else>{{ item.icon }}</template>
+            </span>
+            <span v-if="isMenuOpen" class="label">{{ item.name }}</span>
           </router-link>
         </li>
       </ul>
@@ -40,83 +51,80 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
 const { t } = useI18n();
 
-// Состояния
-const isCollapsed = ref(true);
-const isMobileOpen = ref(false);
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
+const isMobile = computed(() => windowWidth.value <= 768);
 
-// Определяем, мобильное ли устройство
-const isMobile = computed(() => window.innerWidth <= 768);
+const isCollapsed = ref(true);   // Десктоп: true = свернут (узкий), false = развернут
+const isMobileOpen = ref(false); // Мобайл: true = открыт, false = скрыт
+
+const isMenuOpen = computed(() => {
+  return isMobile.value ? isMobileOpen.value : !isCollapsed.value;
+});
 
 // Меню с локализацией
 const menuItems = computed(() => [
   { name: t('Menu.home'), icon: '🏠', link: '/' },
   { name: t('Menu.profile'), icon: '👤', link: '/profile' },
   { name: t('Menu.settings'), icon: '⚙️', link: '/settings' },
-  { name: t('Menu.help'), icon: '❓', link: '/help' }
+  { name: t('Menu.login'), icon: '📝', link: '/auth' }
 ]);
 
-// Открытие мобильного меню
+const closeMenu = () => {
+  if (isMobile.value) {
+    isMobileOpen.value = false;
+  } else {
+    isCollapsed.value = true;
+  }
+};
+
 const toggleMobileMenu = () => {
   isMobileOpen.value = true;
 };
 
-// Закрытие мобильного меню
-const closeMobileMenu = () => {
-  isMobileOpen.value = false;
-};
-
-// Переключение сайдбара (десктоп)
-const toggleSidebar = () => {
-  isCollapsed.value = !isCollapsed.value;
-};
-
-// Универсальный обработчик кнопки в шапке сайдбара
 const handleToggle = () => {
   if (isMobile.value) {
-    closeMobileMenu();
+    closeMenu();
   } else {
-    toggleSidebar();
+    isCollapsed.value = !isCollapsed.value;
   }
 };
 
-// Закрываем мобильное меню при выборе пункта
 const onMenuItemClick = () => {
-  if (isMobile.value) {
-    closeMobileMenu();
-  }
+  closeMenu();
 };
 
-// (Опционально) Обновляем isMobile при изменении размера окна
+// --- Жизненный цикл ---
 onMounted(() => {
   const handleResize = () => {
-    // При переходе с десктопа на мобильный — закрываем сайдбар, если он был открыт
-    if (window.innerWidth <= 768) {
+    windowWidth.value = window.innerWidth;
+    if (!isMobile.value) {
       isMobileOpen.value = false;
     }
   };
+  
   window.addEventListener('resize', handleResize);
-  // Удаление слушателя не обязателен в простых случаях, но можно добавить onBeforeUnmount
 });
 </script>
 
 <style scoped>
-/* Используем ту же типографику и цвета */
+/* Базовые стили сайдбара */
 .sidebar {
   width: 260px;
-  background: #ffffff;
-  color: #2c3e50;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #333);
+  border-right: 1px solid var(--border-color, #e0e0e0);
   height: 100vh;
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 1;
+  z-index: 3; /* Повысили z-index */
   transition: width 0.3s ease, transform 0.3s ease;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border-radius: 0 16px 16px 0;
@@ -124,44 +132,68 @@ onMounted(() => {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.sidebar.collapsed {
-  width: 70px;
+/* Стили оверлея */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 2; /* Ниже сайдбара, но выше контента */
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
 }
 
-/* Мобильная версия: сайдбар скрыт за левым краем */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Состояние: Свернутый (Десктоп) */
+.sidebar.collapsed {
+  width: 70px;
+  border-radius: 0 12px 12px 0;
+}
+
+/* Мобильная адаптация */
 @media (max-width: 768px) {
   .sidebar {
-    transform: translateX(-100%);
-    width: 260px; /* всегда полная ширина на мобилке */
+    transform: translateX(-100%); /* Скрыт за экраном */
+    width: 260px;
     border-radius: 0;
-    box-shadow: 0 0 24px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.2);
   }
 
   .sidebar.collapsed {
-    width: 260px; /* игнорируем collapsed-режим на мобилке */
+    /* Игнорируем collapsed на мобильном, ширина всегда полная */
+    width: 260px; 
   }
 
-  /* Когда сайдбар открыт на мобилке */
   .sidebar.mobile-open {
-    transform: translateX(0);
+    transform: translateX(0); /* Выезжает */
   }
 }
 
+/* Хедер */
 .sidebar-header {
   padding: 20px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 2px solid transparent;
   background: linear-gradient(90deg, #3498db, #2ecc71);
   color: white;
+  min-height: 30px;
 }
 
 .sidebar-header h2 {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0;
-  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toggle-btn {
@@ -177,12 +209,14 @@ onMounted(() => {
   justify-content: center;
   border-radius: 8px;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
 .toggle-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Навигация */
 .sidebar-nav ul {
   list-style: none;
   padding: 20px 0;
@@ -190,25 +224,25 @@ onMounted(() => {
 }
 
 .sidebar-nav li {
-  margin: 6px 16px;
+  margin: 6px 12px;
 }
 
-.sidebar-nav a {
+.menu-link {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  color: #2c3e50;
   text-decoration: none;
   border-radius: 10px;
   transition: all 0.25s ease;
   font-weight: 500;
   font-size: 1rem;
+  color: var(--text-primary, #333);
+  cursor: pointer;
 }
 
-.sidebar-nav a:hover {
-  background-color: #f8fafc;
+.menu-link:hover {
+  background-color: var(--bg-secondary, #f5f5f5);
   color: #3498db;
-  transform: translateX(4px);
 }
 
 .icon {
@@ -216,70 +250,74 @@ onMounted(() => {
   font-size: 1.2rem;
   min-width: 24px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 .label {
   white-space: nowrap;
   opacity: 0.95;
+  transition: opacity 0.2s;
 }
 
-/* При свёрнутом состоянии — иконки по центру */
 .sidebar.collapsed .sidebar-nav a {
   justify-content: center;
-  padding: 14px;
+  padding: 14px 0;
 }
 
 .sidebar.collapsed .icon {
   margin-right: 0;
 }
 
-/* Оверлей для мобильного меню (добавьте его в родительский компонент или здесь через портал) */
-.sidebar-overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 1;
-  backdrop-filter: blur(2px);
+.sidebar.collapsed .label {
+  display: none; /* Скрываем текст */
 }
 
-/* Кнопка-гамбургер для мобильного меню */
-.mobile-menu-toggle {
+.sidebar.collapsed .sidebar-header h2 {
   display: none;
+}
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+}
+
+/* Кнопка гамбургер */
+.mobile-menu-toggle {
+  display: none; /* Скрыта на десктопе по умолчанию */
   position: fixed;
-  top: 16px;
-  left: 9vw;
   z-index: 1;
-  width: 59px;
-  height: 59px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 1.5rem;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  display: flex;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease;
 }
 
 .mobile-menu-toggle:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 @media (max-width: 768px) {
   .mobile-menu-toggle {
-    margin: 7vw 0px;
     display: flex;
-  }
-  .sidebar-overlay.active {
-    display: block;
+    top: 64px;
+    position: fixed;
+    left: 7vw;
+    width: 60px;
+    height: 60px;
+    z-index: 1;
   }
 }
 </style>

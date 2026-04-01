@@ -28,8 +28,3 @@ CREATE TABLE IF NOT EXISTS attachments (
     size BIGINT NOT NULL,              -- размер в байтах
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
--- Индексы для производительности
-CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
-CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at);
-CREATE INDEX IF NOT EXISTS idx_attachments_note_id ON attachments(note_id);

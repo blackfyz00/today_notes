@@ -18,10 +18,13 @@
     "@capacitor/core": "^8.0.2",
     "@capacitor/device": "^8.0.0",
     "@capacitor/filesystem": "^8.1.0",
+    "@xstate/vue": "^5.0.0",
+    "md-editor-v3": "^6.4.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.26",
     "vue-i18n": "^11.2.8",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "xstate": "^5.30.0"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",

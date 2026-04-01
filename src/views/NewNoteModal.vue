@@ -8,26 +8,41 @@
           <h1 class="editor-title">{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
         </header>
 
-        <div class="toolbar">
+        <!-- <div class="toolbar">
           <button class="stdBtn" @click="toggleBold">B</button>
           <button class="stdBtn" @click="toggleItalic">I</button>
           <button class="stdBtn" @click="toggleList">⋮</button>
           <button class="stdBtn" @click="insertImage">📷</button>
           <button class="stdBtn" @click="recordVoice">🎤</button>
-        </div>
+        </div> -->
 
         <div class="editor-area">
-          <textarea 
-            v-model="localContent"
-            class="note-textarea"
-            :placeholder="t('NewNote.start_typing')"
+          <input 
+            maxlength="15"
+            v-model="localTitle"
+            class="note-title-input"
+            :placeholder="t('NewNote.title_placeholder')"
             @input="isDirty = true"
-          ></textarea>
+            :disabled="isLoading"
+          />
+          
+        <MdEditor 
+          v-model="localContent" 
+          language="ru-RU" 
+          :preview="false"
+          @on-focus="handleEditorFocus"
+          @on-blur="handleEditorBlur"
+          @on-upload-img="onUploadImg"
+          :toolbars="['bold', 'italic', 'strike', 'unorderedList', 'orderedList', 'image', 'link', 'code', 'preview', 'fullscreen']"
+          :placeholder="t('NewNote.start_typing')"
+          class="note-md-editor"
+          :disabled="isLoading"
+        />
         </div>
 
         <div class="editor-actions">
           <button class="submit-btn save-btn" @click="saveNote">{{t("NewNote.save")}}</button>
-          <button v-if="isEditing" class="submit-btn delete-btn" @click="deleteNote">Удалить</button>
+          <button v-if="isEditing" class="submit-btn delete-btn" @click="deleteNote">{{t("NewNote.delete")}}</button>
         </div>
       </div>
     </div>
@@ -35,59 +50,243 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n';
+import { ref, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useNotesStore } from '../components/notesStore' // Проверьте путь
+import { apiRequest } from '@/api/apiClient' 
+import { MdEditor, config } from 'md-editor-v3'
+import RU_LOCALE from '../locales/md-locale.ts'
+import 'md-editor-v3/lib/style.css'
 
-const { t } = useI18n();
+config({
+  editorConfig: {
+    languageUserDefined: {
+      'ru-RU': RU_LOCALE,
+      'en': "default"
+    }
+  }
+})
+const { t } = useI18n()
+const notesStore = useNotesStore()
 
 const props = defineProps({
   modelValue: Boolean,
-  content: { type: String, default: '' },
-  isEditing: { type: Boolean, default: false }
+  note: { type: Object, default: null },
+  content: { type: String, default: '' }, // Лишний проп? У вас есть localContent
+  isEditing: { type: Boolean, default: false },
+  selectedDate: { type: [String, Date], default: null } 
 })
 
-const emit = defineEmits(['update:modelValue', 'create', 'edit', 'delete'])
+const emit = defineEmits(['update:modelValue'])
 
-// Локальное состояние
-const localContent = ref(props.content)
+const localTitle = ref('')
+const localContent = ref('')
 const isDirty = ref(false)
+const isLoading = ref(false)
 
-// Сброс при закрытии (опционально)
-watch(() => props.modelValue, (isOpen) => {
-  if (!isOpen) {
-    localContent.value = props.content
-    isDirty.value = false
+// ... после существующих ref
+const isPreview = ref(true)
+
+const handleEditorFocus = () => {
+  isPreview.value = false
+}
+
+// Опционально: возврат в preview при потере фокуса
+const handleEditorBlur = () => {
+  isPreview.value = true
+}
+
+// Обработчик загрузки изображений (базовый)
+const onUploadImg = async (files, callback) => {
+  const res = await Promise.all(
+    Array.from(files).map(file => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target.result)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+    })
+  )
+  callback(res)
+}
+
+// Функция для безопасного заполнения полей
+const fillFormFromNote = (noteObj) => {
+  if (!noteObj) return
+  
+  // Используем nextTick, чтобы убедиться, что DOM и реактивность готовы
+  nextTick(() => {
+    localTitle.value = noteObj.title || ''
+    localContent.value = noteObj.content || ''
+    // Сбрасываем флаг загрязнения, так как это "чистое" состояние при загрузке
+    isDirty.value = false 
+  })
+}
+
+// Следим за открытием модального окна ИЛИ изменением заметки
+watch(
+  () => [props.modelValue, props.note, props.isEditing], 
+  ([isOpen, newNote, isEdit]) => {
+    if (isOpen && isEdit && newNote) {
+      // Если окно открыто, режим редактирования и есть заметка -> заполняем
+      fillFormFromNote(newNote)
+    } else if (!isOpen) {
+      isDirty.value = false
+      isLoading.value = false
+    } else if (isOpen && !isEdit) {
+      localTitle.value = ''
+      localContent.value = ''
+      isDirty.value = false
+    }
+  },
+  { immediate: true } // Запустить сразу при монтировании, если уже открыто
+)
+
+// Вспомогательная функция: получение даты
+const getInDayValue = () => {
+  if (props.isEditing && props.note) {
+    const originalDate = props.note.in_day
+    if (originalDate) {
+      if (typeof originalDate === 'string') {
+        return originalDate.split('T')[0]
+      }
+      if (originalDate instanceof Date) {
+        const year = originalDate.getFullYear()
+        const month = String(originalDate.getMonth() + 1).padStart(2, '0')
+        const day = String(originalDate.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      return originalDate
+    }
   }
-})
 
-const saveNote = () => {
+  // Для новой заметки берем из selectedDate
+  if (props.selectedDate) {
+    if (typeof props.selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(props.selectedDate)) {
+      return props.selectedDate
+    }
+    if (props.selectedDate instanceof Date && !isNaN(props.selectedDate.getTime())) {
+      const year = props.selectedDate.getFullYear()
+      const month = String(props.selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(props.selectedDate.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+  }
+
+  // Fallback: сегодня
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const saveNote = async () => {
+  const title = localTitle.value.trim()
   const content = localContent.value.trim()
-  if (!content) {
-    alert('Заметка не может быть пустой')
+  
+  if (!content && !title) {
+    alert(t('NewNote.empty_error'))
     return
   }
 
-  if (props.isEditing) {
-    emit('edit', content)
-  } else {
-    emit('create', content)
-  }
-  emit('update:modelValue', false)
-}
+  const inDayValue = getInDayValue()
+  isLoading.value = true
+  
+  try {
+    let savedNote
 
-const deleteNote = () => {
-  if (confirm('Удалить заметку?')) {
-    emit('delete')
+    if (props.isEditing && props.note?.id) {
+      // === РЕДАКТИРОВАНИЕ ===
+      const payload = { 
+        title, 
+        content
+      }
+
+      const response = await apiRequest(`/api/notes/${props.note.id}`, {
+        method: 'PUT',
+        body: payload
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Ошибка обновления')
+      }
+
+      // Читаем тело ответа ТОЛЬКО ОДИН РАЗ здесь
+      savedNote = await response.json()
+      
+      notesStore.updateNoteInState(savedNote)
+      
+    } else {
+      // === СОЗДАНИЕ ===
+      const payload = { 
+        title, 
+        content,
+        in_day: inDayValue 
+      }
+
+      const response = await apiRequest('/api/notes/', {
+        method: 'POST',
+        body: payload
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.detail || 'Ошибка создания')
+      }
+
+      // Читаем тело ответа ТОЛЬКО ОДИН РАЗ здесь
+      savedNote = await response.json()
+      
+      notesStore.addNoteToState(savedNote)
+    }
+    
     emit('update:modelValue', false)
+    
+  } catch (error) {
+    console.error('Ошибка сохранения:', error)
+    
+    // Обработка специфических ошибок
+    if (error.message.includes('Unauthorized') || error.message.includes('Сессия')) {
+       // Логика выхода уже есть в store или apiClient
+    } else {
+       alert(error.message || t('NewNote.save_error'))
+    }
+  } finally {
+    isLoading.value = false
   }
 }
 
-// Заглушки для форматирования (реализуйте позже)
-const toggleBold = () => console.log('Bold')
-const toggleItalic = () => console.log('Italic')
-const toggleList = () => console.log('List')
-const insertImage = () => console.log('Insert image')
-const recordVoice = () => console.log('Record voice')
+const deleteNote = async () => {
+  if (!props.note?.id) return
+  if (!confirm(t('NewNote.delete_confirm'))) return
+  
+  isLoading.value = true
+  try {
+    const token = localStorage.getItem('token')
+    // Используйте apiRequest и для DELETE:
+    const res = await apiRequest(`/api/notes/${props.note.id}`, {
+      method: 'DELETE'
+    })
+        
+    if (!res.ok) throw new Error('Failed to delete')
+    
+    notesStore.removeNoteFromState(props.note.id)
+    emit('update:modelValue', false)
+  } catch (error) {
+    console.error('Ошибка удаления:', error)
+    alert(t('NewNote.delete_error'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Заглушки
+const toggleBold = () => document.execCommand?.('bold')
+const toggleItalic = () => document.execCommand?.('italic')
+const toggleList = () => document.execCommand?.('insertUnorderedList')
 </script>
 
 <style scoped>
@@ -106,13 +305,62 @@ const recordVoice = () => console.log('Record voice')
   overflow-y: auto;
 }
 
+.note-md-editor {
+  border-radius: 12px;
+  flex: none;      /* ЗАПРЕЩАЕМ растягиваться через flex */
+  display:   flex;
+  height: 432px;
+  width: 100%;
+  margin-bottom: 0; 
+  flex-direction: column;
+}
+
+.note-md-editor :deep(.md-editor) {
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  background-color: var(--input-bg);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.note-md-editor :deep(.md-editor-content) {
+  flex: 1;
+  min-height: 0;
+}
+
+.note-md-editor :deep(.md-editor-preview),
+.note-md-editor :deep(.md-editor-input) {
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+}
+
+.note-md-editor :deep(.md-editor-toolbar) {
+  display: flex;
+  justify-content: center;  
+  margin: 0 4px;
+  padding: 10px 5px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.note-md-editor :deep(.md-editor-icon) {
+  width: 28px !important;  /* Было около 20px */
+  height: 28px !important;
+  color: var(--text-secondary);
+}
+
+.note-md-editor :deep(.md-editor-icon:hover) {
+  color: var(--text-primary);
+}
+
+
 .note-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   /* Измените align-items: stretch + padding через margin или внутренний отступ */
@@ -124,25 +372,46 @@ const recordVoice = () => console.log('Record voice')
 .note-editor {
   background: var(--card-bg);
   border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); /* как в NotesModal */
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   width: 100%;
   max-width: 800px;
-  /* Занимаем всю высоту с отступами сверху/снизу */
-  height: calc(100vh - 4rem); /* 2rem сверху + 2rem снизу = 4rem */
-  margin: 2rem 1rem; /* эмулируем padding оверлея */
+  height: 90vh; 
+  margin: 2rem 1rem;
+  
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* прокрутка будет внутри */
+  overflow: hidden; 
 }
 
 /* Остальное без изменений, но убедитесь: */
 .editor-area {
   flex: 1;
-  padding: 30px;
+  padding: 10px 16px 0px 16px; 
   display: flex;
   align-items: center;   
   text-align: center;
   flex-direction: column;
+}
+
+.note-title-input{
+  width: 50%;
+  min-width: 0;
+  padding: 5px;
+  margin: 5px;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--text-primary);
+  background-color: var(--input-bg);
+  outline: none;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .note-editor::before {
@@ -160,7 +429,6 @@ const recordVoice = () => console.log('Record voice')
   position: relative;
   display: flex;
   align-items: center;
-  
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
 }
@@ -228,35 +496,8 @@ const recordVoice = () => console.log('Record voice')
   background: var(--bg-secondary);
 }
 
-.note-textarea {
-  flex: 1;
-  width: 100%;
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--input-border);
-  border-radius: 12px;
-  font-size: 16px;
-  color: var(--text-primary);
-  background-color: var(--input-bg);
-  outline: none;
-  font-family: inherit;
-  resize: none;
-  min-height: 200px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.note-textarea:focus {
-  border-color: #3498db;
-  background-color: var(--bg-primary);
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
-}
-
 .editor-actions {
-  padding: 16px;
+  padding: 16px 16px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -300,14 +541,36 @@ const recordVoice = () => console.log('Record voice')
   background: linear-gradient(135deg, #c0392b, #a93226);
 }
 
-/* Responsive adjustments */
+/* Выравнивание текста в самом редакторе (область ввода) */
+.note-md-editor :deep(.md-editor-input-wrapper),
+.note-md-editor :deep(.md-editor-input) {
+  text-align: left;
+}
+
+/* Выравнивание текста в окне предпросмотра (Preview) */
+.note-md-editor :deep(.md-editor-preview) {
+  text-align: left;
+}
+
 @media (max-width: 900px) {
   .note-editor {
     border-radius: 12px;
+    height: 95vh; /* На мобилках лучше занять чуть больше высоты */
+    margin: 10px;  /* Уменьшаем внешние поля, чтобы было больше места */
   }
   
+  /* Уменьшаем высоту самого редактора, чтобы влезли кнопки снизу */
+  .note-md-editor {
+    height: 522px; 
+  }
+
   .editor-header h1 {
     font-size: 1.5rem;
+  }
+  
+  /* Уменьшаем боковые отступы, чтобы редактор не был слишком узким */
+  .editor-area {
+    padding: 10px 12px 0 12px;
   }
   
   .toolbar {
@@ -319,10 +582,6 @@ const recordVoice = () => console.log('Record voice')
     height: 36px;
     font-size: 1rem;
   }
-
-  
-  .note-textarea {
-    min-height: 160px;
-  }
 }
+
 </style>

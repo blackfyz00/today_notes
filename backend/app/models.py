@@ -1,6 +1,6 @@
 # backend/app/models.py
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, BIGINT
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, BIGINT, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 import enum
@@ -14,8 +14,8 @@ class AttachmentType(enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    id = Column(Integer, primary_key=True)
+    email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -24,11 +24,15 @@ class Note(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    title = Column(String(255))
+    title = Column(String(15), nullable=True) # Добавлено nullable=True для соответствия string | null
+    
+    # Поле in_day: используем Date для "дня к которому относится заметка"
+    in_day = Column(Date, nullable=False, index=True) 
+    
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now()) 
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
+    
 class Attachment(Base):
     __tablename__ = "attachments"
 

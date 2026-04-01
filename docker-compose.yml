@@ -4,28 +4,29 @@ services:
   db:
     image: postgres:16
     container_name: notes-postgres
-    restart: always
-    env_file: .env
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file: ./backend/.env
     ports:
       - "5433:5432"
     volumes:
-      - ./init:/docker-entrypoint-initdb.d  # ← Автоматический запуск SQL-скриптов
-      - pgdata:/var/lib/postgresql/data      # ← Сохранение данных между перезапусками
+      - pgdata:/var/lib/postgresql/data 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes_user -d notes_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   
   backend:
     build: ./backend
-    env_file: .env
+    env_file: 
+      - ./backend/.env 
     container_name: notes-backend
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./backend/app:/app/app  # для hot-reload в dev
 volumes:
