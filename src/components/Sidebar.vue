@@ -312,7 +312,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .mobile-menu-toggle {
     display: flex;
-    top: 64px;
+    top: 42px;
     position: fixed;
     left: 7vw;
     width: 60px;

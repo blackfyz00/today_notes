@@ -65,6 +65,7 @@ import { nextTick } from 'vue'; // 1. Импортируем nextTick
 import LoadingOverlay from '../components/loadingOverlay.vue';
 import { useMachine } from '@xstate/vue';
 import { loadingMachine } from '../composables/xstate.ts';
+const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
 const { snapshot, send } = useMachine(loadingMachine);
 const router = useRouter(); 
@@ -83,7 +84,6 @@ const handleLogin = async () => {
   send({ type: 'FETCH' });
 
   try {
-    const apiUrl = 'http://localhost:8000';
     
     // Эмуляция задержки
     await new Promise(r => setTimeout(r, 500));
@@ -188,7 +188,7 @@ h1.error-text::after {
   height: 4px;
   background: linear-gradient(90deg, #3498db, #2ecc71);
   transition: background 0.3s ease;
-  z-index: 10;
+  z-index: 1;
 }
 
 .form.error::before {

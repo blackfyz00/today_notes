@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS notes (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255),
+    in_day DATE NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -28,3 +29,4 @@ CREATE TABLE IF NOT EXISTS attachments (
     size BIGINT NOT NULL,              -- размер в байтах
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+

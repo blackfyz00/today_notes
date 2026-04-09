@@ -136,13 +136,14 @@ const selectYear = (year) => {
 <style scoped>
 /* === Общие стили модалки === */
 .month-picker-overlay {
+  backdrop-filter: blur(4px);
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2;
+  z-index: 3;
 }
 
 .month-picker-content {

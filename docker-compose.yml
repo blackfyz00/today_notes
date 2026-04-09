@@ -8,13 +8,14 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data 
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/app/initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U notes_user -d notes_db"]
       interval: 5s
       timeout: 5s
       retries: 5
-  
+
   backend:
     build: ./backend
     env_file: 

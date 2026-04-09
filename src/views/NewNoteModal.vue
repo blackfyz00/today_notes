@@ -53,7 +53,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useNotesStore } from '../components/notesStore' // Проверьте путь
-import { apiRequest } from '@/api/apiClient' 
+import { apiRequest } from '../api/apiClient.ts' 
 import { MdEditor, config } from 'md-editor-v3'
 import RU_LOCALE from '../locales/md-locale.ts'
 import 'md-editor-v3/lib/style.css'
@@ -204,7 +204,7 @@ const saveNote = async () => {
         content
       }
 
-      const response = await apiRequest(`/api/notes/${props.note.id}`, {
+      const response = await apiRequest(`/notes/${props.note.id}`, {
         method: 'PUT',
         body: payload
       })
@@ -227,7 +227,7 @@ const saveNote = async () => {
         in_day: inDayValue 
       }
 
-      const response = await apiRequest('/api/notes/', {
+      const response = await apiRequest('/notes/', {
         method: 'POST',
         body: payload
       })
@@ -250,7 +250,6 @@ const saveNote = async () => {
     
     // Обработка специфических ошибок
     if (error.message.includes('Unauthorized') || error.message.includes('Сессия')) {
-       // Логика выхода уже есть в store или apiClient
     } else {
        alert(error.message || t('NewNote.save_error'))
     }
@@ -267,7 +266,7 @@ const deleteNote = async () => {
   try {
     const token = localStorage.getItem('token')
     // Используйте apiRequest и для DELETE:
-    const res = await apiRequest(`/api/notes/${props.note.id}`, {
+    const res = await apiRequest(`/notes/${props.note.id}`, {
       method: 'DELETE'
     })
         
@@ -307,11 +306,12 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
 
 .note-md-editor {
   border-radius: 12px;
-  flex: none;      /* ЗАПРЕЩАЕМ растягиваться через flex */
+  flex: 1;
   display:   flex;
-  height: 432px;
+  /* height: 432px; */
   width: 100%;
   margin-bottom: 0; 
+  max-height: 55vh;
   flex-direction: column;
 }
 
@@ -560,9 +560,9 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
   }
   
   /* Уменьшаем высоту самого редактора, чтобы влезли кнопки снизу */
-  .note-md-editor {
+  /* .note-md-editor {
     height: 522px; 
-  }
+  } */
 
   .editor-header h1 {
     font-size: 1.5rem;

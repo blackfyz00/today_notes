@@ -251,8 +251,8 @@ h1::after {
 .CalendarBody {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-  padding: 12px;
+  gap: 12px;
+  padding: 24px;
   background: var(--card-bg);
   border-radius: 20px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -342,13 +342,13 @@ h1::after {
 @media (max-width: 900px) {
 
   .main-calendar{
-    margin-top: 5rem;
+    margin-top: 3rem;
   }
 
   .mobile-menu-toggle {
     display: flex;
     position: fixed;
-    top: 64px;
+    top: 42px;
     right: 7vw;
     width: 60px;
     z-index: 1;
@@ -370,9 +370,11 @@ h1::after {
   }
 
   .CalendarBody {
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr); 
+    gap: 14px; 
     padding: 16px;
-    grid-template-columns: repeat(7, minmax(4px, 1fr));
+    flex: 1;
   }
 
   .mobile-menu-toggle:hover {

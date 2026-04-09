@@ -10,15 +10,11 @@ import os
 from dotenv import load_dotenv
 from .auth import get_current_user
 
-load_dotenv(dotenv_path="../.env")
-
-origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
-
 app = FastAPI(title="Notes API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

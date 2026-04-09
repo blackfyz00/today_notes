@@ -1,7 +1,7 @@
 // src/components/notesStore.ts
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-
+const backend = import.meta.env.VITE_API_BASE_URL || '';
 
 export interface Note {
   id: number
@@ -98,7 +98,7 @@ export const useNotesStore = defineStore('notes', () => {
       }
 
       // ИСПРАВЛЕНИЕ 1: Добавляем параметр даты в URL
-      const url = `/api/notes/?date=${key}`
+      const url = `${backend}/notes/?date=${key}`
       
       const res = await fetch(url, {
         headers: {
@@ -144,8 +144,7 @@ export const useNotesStore = defineStore('notes', () => {
       if (!token) {
         throw new Error('No token')
       }
-
-      const res = await fetch(`/api/notes/stats`, { 
+      const res = await fetch(`${backend}/notes/stats`, { 
         headers: {
           'Authorization': `Bearer ${token}`
         }

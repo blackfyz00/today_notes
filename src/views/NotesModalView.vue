@@ -32,9 +32,6 @@
           </div>
           <h3>{{ t("Notes.noNotes") }}</h3>
           <p class="empty-subtext">{{ t("Notes.noNoteslog") }}</p>
-          <button class="create-btn" @click="$emit('create-editor')">
-            Создать заметку
-          </button>
         </div>
 
         <!-- Сетка заметок -->
@@ -51,7 +48,9 @@
               <p class="note-content">{{ truncate(note.content, 120) }}</p>
           </div>
         </div>
-
+        <button class="create-btn" @click="$emit('create-editor')">
+          Создать заметку
+        </button>
       </div>
     </div>
   </Teleport>
@@ -171,6 +170,7 @@ watch(() => props.date, (newDate) => {
 <style scoped>
 /* Оверлей модального окна */
 .notes-modal-overlay {
+  backdrop-filter: blur(4px);
   position: fixed;
   top: 0;
   left: 0;
@@ -270,7 +270,7 @@ watch(() => props.date, (newDate) => {
 /* Пустое состояние */
 .empty-state {
   text-align: center;
-  padding: 4rem 1rem;
+  padding: 4rem 0rem;
   max-width: 500px;
   margin: 0 auto;
 }
@@ -309,6 +309,7 @@ watch(() => props.date, (newDate) => {
 
 .create-btn {
   padding: 14px 32px;
+  margin-bottom: 2rem;
   background: linear-gradient(135deg, #3498db, #2ecc71);
   color: white;
   border: none;
