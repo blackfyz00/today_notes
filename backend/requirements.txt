@@ -9,3 +9,6 @@ alembic==1.13.3
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
+aioboto3==13.2.0
+types-aioboto3[s3]==13.2.0
+python-multipart==0.0.12

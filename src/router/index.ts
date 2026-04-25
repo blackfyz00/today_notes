@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Calendar from '@/views/Calendar.vue'
 import AuthPage from '@/views/AuthPage.vue'
+import HelloWorld from '@/components/HelloWorld.vue'
 
 const routes = [
   { 
@@ -12,7 +13,11 @@ const routes = [
     path: '/', 
     component: Calendar,
     meta: { requiresAuth: true }
-  }
+  },
+  { 
+    path: '/test', 
+    component: HelloWorld 
+  },
 ]
 
 const router = createRouter({
