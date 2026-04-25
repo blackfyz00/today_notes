@@ -32,7 +32,7 @@
           :preview="false"
           @on-focus="handleEditorFocus"
           @on-blur="handleEditorBlur"
-          @on-upload-img="onUploadImg"
+          @on-upload-img="onUploadFile"
           :toolbars="['bold', 'italic', 'strike', 'unorderedList', 'orderedList', 'image', 'link', 'code', 'preview', 'fullscreen']"
           :placeholder="t('NewNote.start_typing')"
           class="note-md-editor"
@@ -96,20 +96,51 @@ const handleEditorBlur = () => {
   isPreview.value = true
 }
 
-// Обработчик загрузки изображений (базовый)
-const onUploadImg = async (files, callback) => {
+// Обработчик загрузки изображений в MinIO через ваш API
+const onUploadFile = async (files, callback) => {
   const res = await Promise.all(
-    Array.from(files).map(file => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => resolve(e.target.result)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+    Array.from(files).map(async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await apiRequest('/upload-file', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+        
+        if (data.type === 'audio') {
+          // ВАЖНО: Мы не возвращаем это в callback сразу, 
+          // так как редактор обернет это в ![](...)
+          // Мы вернем объект, чтобы обработать его ниже
+          return { type: 'audio', value: `<audio controls src="${data.url}"></audio>` };
+        } else {
+          return { type: 'image', value: data.url };
+        }
+      } catch (error) {
+        console.error('Ошибка:', error);
+        return null;
+      }
     })
-  )
-  callback(res)
-}
+  );
+
+  const results = res.filter(r => r !== null);
+  
+  // 1. Отделяем картинки для стандартного callback (редактор сам вставит ![] )
+  const images = results.filter(r => r.type === 'image').map(r => r.value);
+  if (images.length > 0) {
+    callback(images);
+  }
+
+  // 2. Аудио вставляем вручную прямо в текст (v-model), чтобы не было ![](...)
+  const audios = results.filter(r => r.type === 'audio').map(r => r.value);
+  if (audios.length > 0) {
+    // Вставляем аудио в конец текста или в позицию курсора
+    localContent.value += '\n' + audios.join('\n') + '\n';
+  }
+};
 
 // Функция для безопасного заполнения полей
 const fillFormFromNote = (noteObj) => {
@@ -293,26 +324,33 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
 .note-editor {
   background: var(--card-bg);
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  position: relative;
-  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  width: 100%;
+  max-width: 800px;
+  height: 90vh; 
+  margin: 2rem 1rem;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 800px; 
-  max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden; 
+  position: relative;
 }
 
 .note-md-editor {
-  border-radius: 12px;
-  flex: 1;
-  display:   flex;
-  /* height: 432px; */
+  flex: 1; /* Теперь он растет и заполняет пустоту */
   width: 100%;
-  margin-bottom: 0; 
-  max-height: 55vh;
+  display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.note-md-editor:deep(.md-editor-fullscreen) {
+  z-index: 7; /* Должен быть выше модалки */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important; /* Убираем твои 55vh */
 }
 
 .note-md-editor :deep(.md-editor) {
@@ -383,21 +421,20 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
   overflow: hidden; 
 }
 
-/* Остальное без изменений, но убедитесь: */
 .editor-area {
-  flex: 1;
-  padding: 10px 16px 0px 16px; 
+  flex: 1; 
   display: flex;
-  align-items: center;   
-  text-align: center;
   flex-direction: column;
+  padding: 16px;
+  min-height: 0; /* Важно для корректного flex-скролла */
 }
 
 .note-title-input{
-  width: 50%;
+  width: 100%; 
+  max-width: 400px;
   min-width: 0;
   padding: 5px;
-  margin: 5px;
+  margin: 0 auto 15px auto;
   border: 1px solid var(--input-border);
   border-radius: 12px;
   text-align: center;
@@ -425,25 +462,24 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
 }
 
 .editor-header {
-  justify-content: flex;
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr; 
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
 }
 
 .editor-title {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  grid-column: 2;
+  flex: 1; 
+  text-align: center; 
   color: var(--heading-color);
-  font-size: 1.8rem;
+  font-size: 1.5rem; 
   font-weight: 700;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  /* Если заголовок длинный — уберите white-space и добавьте max-width */
 }
 
 .toolbar {
@@ -477,6 +513,8 @@ const toggleList = () => document.execCommand?.('insertUnorderedList')
 }
 
 .back-btn {
+  grid-column: 1;
+  justify-self: start;
   background: none;
   border: none;
   font-size: 1.5rem;

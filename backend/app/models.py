@@ -33,12 +33,22 @@ class Note(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now()) 
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
+# Определяем Enum для использования в Python
+class AttachmentType(enum.Enum):
+    image = "image"
+    audio = "audio"
+
 class Attachment(Base):
     __tablename__ = "attachments"
 
     id = Column(Integer, primary_key=True, index=True)
-    note_id = Column(Integer, ForeignKey("notes.id", ondelete="CASCADE"), nullable=False)
-    type = Column(Enum(AttachmentType), nullable=False)
+    note_id = Column(Integer, ForeignKey("notes.id", ondelete="CASCADE"), nullable=True)
+
+    type = Column(
+        Enum(AttachmentType, name='attachment_type'), 
+        nullable=False
+    )
+    
     minio_path = Column(Text, nullable=False)
     size = Column(BIGINT, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

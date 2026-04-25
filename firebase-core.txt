@@ -1,0 +1,12 @@
+firebase-core библиотека для пуш уведомлений
+firebase-messaging
+
+нужно добавить пермишн пост нотификейшн для пушей в манифест
+
+импортируем в точку входа до инициализации приложения
+
+идем console.firbase.google.com
+
+файл файрбейс после регистрации гугл джсон в android/src/main + .gitignore
+
+firebase-firestore - бд

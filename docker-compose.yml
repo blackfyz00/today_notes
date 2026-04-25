@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio-notes
+    ports:
+      - "9000:9000"     # API (для приложений)
+      - "9001:9001"     # Console (веб-интерфейс)
+    environment:
+      MINIO_ROOT_USER: admin12345
+      MINIO_ROOT_PASSWORD: admin12345  # Замените на надежный пароль
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
   backend:
     build: ./backend
     env_file: 
@@ -32,3 +45,4 @@ services:
       - ./backend/app:/app/app  # для hot-reload в dev
 volumes:
   pgdata:
+  minio_data:

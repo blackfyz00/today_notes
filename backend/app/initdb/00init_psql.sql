@@ -23,7 +23,7 @@ CREATE TYPE attachment_type AS ENUM ('image', 'audio');
 
 CREATE TABLE IF NOT EXISTS attachments (
     id SERIAL PRIMARY KEY,
-    note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    note_id INTEGER REFERENCES notes(id) ON DELETE CASCADE,
     type attachment_type NOT NULL,
     minio_path TEXT NOT NULL,          -- путь в MinIO, например: "user123/note456/photo.jpg"
     size BIGINT NOT NULL,              -- размер в байтах

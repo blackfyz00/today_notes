@@ -74,7 +74,10 @@ const email = ref<string>('');
 const password = ref<string>('');
 const isLoading = ref<boolean>(false);
 const hasError = ref<boolean>(false); 
-const isShaking = ref<boolean>(false);
+const isShaking = ref<boolean>(false)
+import { useNotesStore } from '../components/notesStore';
+
+const notesStore = useNotesStore();
 
 const handleLogin = async () => {
   hasError.value = false;
@@ -101,7 +104,8 @@ const handleLogin = async () => {
 
     const data = await response.json();
     localStorage.setItem('token', data.access_token);
-    
+    notesStore.fetchNotes(new Date());
+
     // 2. Успех
     send({ type: 'SUCCESS' });
     router.push('/');
