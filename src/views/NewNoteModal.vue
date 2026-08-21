@@ -1,51 +1,50 @@
 <!-- src/views/NewNoteModal.vue -->
 <template>
-  <div v-if="show" class="note-modal-overlay" :class="{ 'dark-theme': editorTheme === 'dark' }" @click="closeModal">
-    <div class="note-editor" @click.stop>
-      <header class="editor-header">
-        <button class="back-btn" @click="closeModal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-        <h1 class="editor-title">{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
-      </header>
-
-      <div class="editor-area">
-        <input 
-          maxlength="15"
-          v-model="localTitle"
-          class="note-title-input"
-          :placeholder="t('NewNote.title_placeholder')"
-          @input="isDirty = true"
-          :disabled="isLoadingBtnClicked === 'loading'"
-        />
-        
-        <MdEditor 
-          v-model="localContent" 
-          language="ru-RU" 
-          :theme="editorTheme"
-          :preview="false"
-          :previewOnly="isEditing"
-          @on-upload-img="onUploadFile"
-          :toolbars="['bold', 'italic', 'strike', 'unorderedList', 'orderedList', 'image', 'code', 'preview', 'previewOnly', 'fullscreen']"
-          :placeholder="t('NewNote.start_typing')"
-          class="note-md-editor"
-          :disabled="isLoadingBtnClicked === 'loading'"
-        />
-      </div>
-
-      <div class="editor-actions">
-        <button class="submit-btn save-btn" 
-          :disabled="isLoadingBtnClicked === 'loading'"
-          @click="saveNote">{{ t("NewNote.save") }}</button>
-        <button v-if="isEditing" class="submit-btn delete-btn" 
-          :disabled="isLoadingBtnClicked === 'loading'"
-          @click="deleteNote">{{ t("NewNote.delete") }}</button>
-      </div>
+    <div v-if="show" class="note-modal-overlay" :class="{ 'dark-theme': editorTheme === 'dark' }" @click="closeModal">
+        <div class="note-editor" @click.stop>
+            <header class="editor-header">
+                <button class="back-btn" @click="closeModal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                </button>
+                <h1 class="editor-title">{{ isEditing ? t('NewNote.edit') : t('NewNote.newNote') }}</h1>
+                <div class="editor-area">
+                <input 
+                    maxlength="15"
+                    v-model="localTitle"
+                    class="note-title-input"
+                    :placeholder="t('NewNote.title_placeholder')"
+                    @input="isDirty = true"
+                    :disabled="isLoadingBtnClicked === 'loading'"
+                />
+                </div>
+            </header>
+                
+            <MdEditor 
+                v-model="localContent" 
+                language="ru-RU" 
+                :theme="editorTheme"
+                :preview="false"
+                :previewOnly="isEditing"
+                @on-upload-img="onUploadFile"
+                :toolbars="['bold', 'italic', 'strike', 'unorderedList', 'orderedList', 'image', 'code', 'preview', 'previewOnly', 'fullscreen']"
+                :placeholder="t('NewNote.start_typing')"
+                class="note-md-editor"
+                :disabled="isLoadingBtnClicked === 'loading'"
+            />
+    
+            <div class="editor-actions">
+                <button class="submit-btn save-btn" 
+                :disabled="isLoadingBtnClicked === 'loading'"
+                @click="saveNote">{{ t("NewNote.save") }}</button>
+                <button v-if="isEditing" class="submit-btn delete-btn" 
+                :disabled="isLoadingBtnClicked === 'loading'"
+                @click="deleteNote">{{ t("NewNote.delete") }}</button>
+            </div>
+        </div>
     </div>
-  </div>
 </template>
 
 <script setup>
@@ -330,10 +329,6 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   width: 100%;
-  max-width: 800px;
-  height: 90vh; 
-  margin: 2rem 1rem;
-  display: flex;
   flex-direction: column;
   overflow: hidden; 
   position: relative;
@@ -342,10 +337,10 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
 .note-md-editor {
   flex: 1; /* Теперь он растет и заполняет пустоту */
   width: 100%;
+  height: 78%;
   display: flex;
   border-radius: 16px;
   flex-direction: column;
-  min-height: 0;
 }
 
 .note-md-editor:deep(.md-editor-fullscreen) {
@@ -454,16 +449,15 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
   min-height: 0; /* Важно для корректного flex-скролла */
 }
 
-.note-title-input{
-  width: 100%; 
-  max-width: 400px;
+.note-title-input {
+  flex: 1;
   min-width: 0;
-  padding: 5px;
-  margin: 0 auto 15px auto;
+  max-width: 90%;
+  padding: 6px 12px;
   border: 1px solid var(--input-border);
-  border-radius: 12px;
+  border-radius: 8px;
   text-align: center;
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-primary);
   background-color: var(--input-bg);
   outline: none;
@@ -474,6 +468,8 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
   overflow-wrap: break-word;
   overflow-x: hidden;
   overflow-y: auto;
+  height: auto;
+  max-height: 50px;
 }
 
 .note-editor::before {
@@ -487,26 +483,23 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
 }
 
 .editor-header {
-  position: relative;        /* БАЗА: Чтобы абсолютная кнопка позиционировалась относительно шапки */
-  display: flex;             /* ИЗМЕНЕНО: flex вместо grid для идеального выравнивания по центру */
-  justify-content: center;   
-  align-items: center;       
-  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
-  min-height: 50px;          /* Фиксируем высоту шапки для стабильности */
+  min-height: 50px;
+  position: relative;
+  gap: 12px;
 }
 
 .editor-title {
-  grid-column: 2;
-  flex: 1; 
-  text-align: center; 
+  flex-shrink: 0;
   color: var(--heading-color);
-  font-size: 1.5rem; 
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 600;
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.5; /* Добавляем для правильного выравнивания */
 }
 
 .toolbar {
@@ -564,15 +557,15 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
 }
 
 .editor-actions {
-  padding: 16px 16px 16px 16px;
+  padding: 16px;
   display: flex;
-  flex-direction: column;
+  grid-template-columns: 1fr 1fr; /* Две колонки одинаковой ширины */
   gap: 12px;
+  margin-top: auto; /* Прижимает к нижней части */
 }
 
 .submit-btn {
-  width: 100%;
-  padding: 14px;
+  padding: 8px;
   background: linear-gradient(135deg, #34db74, #2980b9);
   color: white;
   border: none;
@@ -588,6 +581,7 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  width: 100%; /* Растягивается на всю ячейку */
 }
 
 .submit-btn:hover {
