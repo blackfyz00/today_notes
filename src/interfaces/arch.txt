@@ -1,0 +1,20 @@
+src/
+├── interfaces/           # Только контракты (ваши интерфейсы)
+│   ├── ICloudStorage.ts
+│   ├── IAuthProvider.ts
+│   ├── ISyncManager.ts
+│   └── IStorage.ts
+│
+├── services/             # Бизнес-логика (реализация менеджеров)
+│   └── SyncManager.ts    # Класс, реализующий ISyncManager
+│
+└── providers/            # Инфраструктура (работа со сторонними API и браузером)
+    ├── auth/
+    │   ├── GoogleAuthProvider.ts
+    │   └── YandexAuthProvider.ts
+    ├── storage/
+    │   ├── GoogleCloudStorage.ts
+    │   ├── YandexCloudStorage.ts
+    │   └── LocalStorageStorage.ts    # Локальная копия по вашему совету
+    └── token/
+        └── SessionTokenStorage.ts

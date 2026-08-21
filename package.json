@@ -1,0 +1,53 @@
+{
+  "name": "vue-project1",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build",
+    "format": "prettier --write --experimental-cli src/"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.0",
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/device": "^8.0.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/local-notifications": "^8.0.2",
+    "@capgo/capacitor-social-login": "^8.3.35",
+    "axios": "^1.15.0",
+    "idb": "^8.0.3",
+    "idb-keyval": "^6.2.5",
+    "jeep-sqlite": "^2.8.0",
+    "jszip": "^3.10.1",
+    "md-editor-v3": "^6.4.2",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.26",
+    "vue-i18n": "^11.2.8",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^24.10.9",
+    "@vitejs/plugin-vue": "^6.0.3",
+    "@vue/tsconfig": "^0.8.1",
+    "npm-run-all2": "^8.0.4",
+    "prettier": "3.8.1",
+    "rollup-plugin-copy": "^3.5.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-vue-devtools": "^8.0.5",
+    "vue-tsc": "^3.2.2"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

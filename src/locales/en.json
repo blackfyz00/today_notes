@@ -1,0 +1,55 @@
+{
+   "h1_hello_text":"Hello, Vue!",
+   "mainpagetext":"Lorem ipsum, dolor sit amet consectetur adipisicing elit. Omnis quidem eius nulla officiis quaerat tempora consequuntur at, odio ratione, ad veritatis est odit. Eligendi reiciendis tenetur sapiente eveniet ipsa nobis.",
+   "Menu":{
+      "name":"Menu",
+      "home":"Home",
+      "profile":"Profile",
+      "settings":"Settings",
+      "help":"Help"
+   },
+   "Calendar":{
+      "name":"Today",
+      "days":{
+         "mon":"Mon",
+         "tue":"Tue",
+         "wed":"Wed",
+         "thu":"Thu",
+         "fri":"Fri",
+         "sat":"Sat",
+         "sun":"Sun"
+      },
+      "months":{
+         "jan":"January",
+         "feb":"February",
+         "mar":"March",
+         "apr":"April",
+         "may":"May",
+         "jun":"June",
+         "jul":"July",
+         "aug":"August",
+         "sep":"September",
+         "oct":"October",
+         "nov":"November",
+         "dec":"December"
+      }
+   },
+   "Notes":{
+      "noNotes": "No notes :(",
+      "noNoteslog": "Write down your thoughts, ideas and moments!"
+   },
+   "Donate": {
+    "title": "Support the project",
+    "subtitle": "Help the app grow",
+    "boostyDesc": "Subscribe for exclusive content",
+    "patreonDesc": "Become a patron",
+    "donationalertsDesc": "Quick donation",
+    "kofiDesc": "Buy a cup of coffee",
+    "support": "Support",
+    "contacts": "Contacts",
+    "email": "Email",
+    "thanks": "Thank you!",
+    "thanksDesc": "Every donation helps develop the app and add new features. Thank you for your support!",
+    "version": "Version"
+  }
+}
