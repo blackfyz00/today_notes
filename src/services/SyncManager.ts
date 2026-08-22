@@ -6,163 +6,164 @@ export class SyncManager {
   /**
    * Синхронизировать месяц между локальным и облачным хранилищем
    */
-  static async syncMonth(
-  month: string,
-  queue: Note[],
-  removeSyncedNotes: (syncedNotes: Note[]) => void,
-  localDB: ICloudStorage,
-  cloudDB: ICloudStorage
-): Promise<void> {
-  try {
-    console.log(`🔄 Syncing month: ${month}`);
+   // src/services/SyncManager.ts
 
-    // ============================================
-    // ШАГ 0: Подготовка данных
-    // ============================================
     
-    const [year, monthNum] = month.split('/').map(Number);
-    if (!year || !monthNum) {
-      throw new Error(`Invalid month format: ${month}`);
-    }
-    
-    const monthDate = new Date(year, monthNum - 1, 1);
-    
-    const [cloudStats, localStats] = await Promise.all([
-      cloudDB.getMonthStats(monthDate),
-      localDB.getMonthStats(monthDate)
-    ]);
-
-    // ============================================
-    // ШАГ 1: Собираем все заметки за месяц из облака (ВКЛЮЧАЯ deleted)
-    // ============================================
-    
-    const cloudNotesMap = new Map<string, Note>();
-    
-    for (const stat of cloudStats) {
-      const dayNotes = await cloudDB.getNotesForDay(stat.date);
-      for (const note of dayNotes) {
-        // ✅ Добавляем ВСЕ заметки
-        const id = note.id || note.filenameLink;
-        cloudNotesMap.set(id, note);
-        if (note.deleted) {
-          console.log(`🗑️ Cloud deleted: ${id}`);
-        }
-      }
-    }
-
-    // ============================================
-    // ШАГ 2: Собираем все заметки за месяц локально (ВКЛЮЧАЯ deleted)
-    // ============================================
-    
-    const localNotesMap = new Map<string, Note>();
-    
-    for (const stat of localStats) {
-      const dayNotes = await localDB.getNotesForDay(stat.date);
-      for (const note of dayNotes) {
-        // ✅ Добавляем ВСЕ заметки
-        const id = note.id || note.filenameLink;
-        localNotesMap.set(id, note);
-        if (note.deleted) {
-          console.log(`🗑️ Local deleted: ${id}`);
-        }
-      }
-    }
-
-    console.log(`☁️ Cloud notes: ${cloudNotesMap.size}, 💾 Local notes: ${localNotesMap.size}`);
-
-    // ============================================
-    // ШАГ 3: Определяем, что нужно синхронизировать
-    // ============================================
-    
-    const allIds = new Set([...cloudNotesMap.keys(), ...localNotesMap.keys()]);
-    const queueIds = new Set(queue.map((n: Note) => n.id));
-    const successfullySynced: Note[] = [];
-
-    // ============================================
-    // ШАГ 4: Синхронизация (Local → Cloud)
-    // ============================================
-    
-    for (const id of allIds) {
-      const localNote = localNotesMap.get(id);
-      const cloudNote = cloudNotesMap.get(id);
-      
-      if (queueIds.has(id)) {
-        console.log(`⏭️ Skipping ${id} - in queue (local wins)`);
-        continue;
-      }
-      
-      // 🔼 Есть локально, нет в облаке → загружаем (только если не удалена)
-      if (localNote && !cloudNote && !localNote.deleted) {
-        console.log(`☁️ Uploading new note: ${localNote.filenameLink}`);
-        await SyncManager.uploadToCloud(localDB, cloudDB, localNote);
-        successfullySynced.push(localNote);
-        continue;
-      }
-      
-      // 🔽 Есть в облаке, нет локально → скачиваем (только если не удалена)
-      if (cloudNote && !localNote && !cloudNote.deleted) {
-        console.log(`📥 Downloading new note: ${cloudNote.filenameLink}`);
-        await SyncManager.downloadFromCloud(cloudDB, localDB, cloudNote);
-        continue;
-      }
-      
-      // 🔄 Есть везде → сравниваем даты (только если не удалены)
-      if (localNote && cloudNote && !localNote.deleted && !cloudNote.deleted) {
-        const localDate = new Date(localNote.updated_at || 0);
-        const cloudDate = new Date(cloudNote.updated_at || 0);
+   static async syncMonth(
+     month: string,
+     queue: Note[],
+     removeSyncedNotes: (syncedNotes: Note[]) => void,
+     localDB: ICloudStorage,
+     cloudDB: ICloudStorage
+   ): Promise<void> {
+     try {
+       console.log(`🔄 Syncing month: ${month}`);
+       function getCleanPath(path: string): string {
+         return path.replace(/\.deleted$/, '');
+       }
+       // ============================================
+       // ШАГ 0: Подготовка данных
+       // ============================================
+       
+       const [year, monthNum] = month.split('/').map(Number);
+       if (!year || !monthNum) {
+         throw new Error(`Invalid month format: ${month}`);
+       }
+       
+       const monthDate = new Date(year, monthNum - 1, 1);
+       
+       const [cloudStats, localStats] = await Promise.all([
+         cloudDB.getMonthStats(monthDate),
+         localDB.getMonthStats(monthDate)
+       ]);
+   
+        // ============================================
+        // ШАГ 1: Облачные заметки
+        // ============================================
+        const cloudNotesMap = new Map<string, Note>();
         
-        if (localDate > cloudDate) {
-          console.log(`☁️ Updating cloud (local newer): ${localNote.filenameLink}`);
-          await SyncManager.uploadToCloud(localDB, cloudDB, localNote);
-          successfullySynced.push(localNote);
-        } else if (cloudDate > localDate) {
-          console.log(`📥 Updating local (cloud newer): ${cloudNote.filenameLink}`);
-          await SyncManager.downloadFromCloud(cloudDB, localDB, cloudNote);
+        for (const stat of cloudStats) {
+          const dayNotes = await cloudDB.getNotesForDay(stat.date);
+          for (const note of dayNotes) {
+            // ✅ ИСПРАВЛЕНО: используем getCleanPath()
+            const id = getCleanPath(note.filenameLink);
+            cloudNotesMap.set(id, note);
+            if (note.deleted) {
+              console.log(`🗑️ Cloud deleted: ${id}`);
+            }
+          }
         }
-      }
-    }
-
-    // ============================================
-    // ШАГ 5: Обработка удалений
-    // ============================================
-    
-    console.log('🗑️ Processing deletions...');
-    
-    // 1. Удаляем из облака то, что удалено локально
-    for (const [id, localNote] of localNotesMap) {
-      if (localNote.deleted && cloudNotesMap.has(id)) {
-        console.log(`🗑️ Deleting from cloud: ${localNote.filenameLink}`);
-        await cloudDB.deleteFile(localNote.filenameLink);
-      }
-    }
-    
-    // 2. Удаляем локально то, что удалено в облаке
-    for (const [id, cloudNote] of cloudNotesMap) {
-      if (cloudNote.deleted && localNotesMap.has(id)) {
-        const localNote = localNotesMap.get(id);
-        if (localNote && !queueIds.has(id)) {
-          console.log(`🗑️ Deleting locally: ${localNote.filenameLink}`);
-          await localDB.deleteFile(localNote.filenameLink);
+        
+        // ============================================
+        // ШАГ 2: Локальные заметки
+        // ============================================
+        const localNotesMap = new Map<string, Note>();
+        
+        for (const stat of localStats) {
+          const dayNotes = await localDB.getNotesForDay(stat.date);
+          for (const note of dayNotes) {
+            // ✅ ИСПРАВЛЕНО: используем getCleanPath()
+            const id = getCleanPath(note.filenameLink);
+            localNotesMap.set(id, note);
+            if (note.deleted) {
+              console.log(`🗑️ Local deleted: ${id}`);
+            }
+          }
         }
-      }
-    }
-
-    // ============================================
-    // ШАГ 6: Очистка очереди
-    // ============================================
+          
+       // ============================================
+       // ШАГ 3: Определяем, что нужно синхронизировать
+       // ============================================
+       
+       const allIds = new Set([...cloudNotesMap.keys(), ...localNotesMap.keys()]);
+       const queueIds = new Set(queue.map((n: Note) => getCleanPath(n.filenameLink)));
+       const successfullySynced: Note[] = [];
+   
+       // ============================================
+       // ШАГ 4: Синхронизация
+       // ============================================
+       
+       for (const id of allIds) {
+         const localNote = localNotesMap.get(id);
+         const cloudNote = cloudNotesMap.get(id);
+         
+         if (queueIds.has(id)) {
+           console.log(`⏭️ Skipping ${id} - in queue (local wins)`);
+           continue;
+         }
+         
+         // ✅ 1. СНАЧАЛА проверяем удаленные локально
+         if (localNote && localNote.deleted) {
+           if (cloudNote && !cloudNote.deleted) {
+             // Удалена локально, есть в облаке → удаляем в облаке
+             console.log(`🗑️ Deleting from cloud: ${localNote.filenameLink}`);
+             await cloudDB.deleteFile(localNote.filenameLink);
+           } else if (!cloudNote) {
+             // Удалена локально, нет в облаке → ничего не делаем
+             console.log(`⏭️ Skipping deleted local note (no cloud): ${localNote.filenameLink}`);
+           } else if (cloudNote && cloudNote.deleted) {
+             // Удалена везде → ничего не делаем
+             console.log(`⏭️ Both deleted: ${localNote.filenameLink}`);
+           }
+           continue; // ← ВАЖНО: пропускаем дальше!
+         }
+         
+         // ✅ 2. ПОТОМ проверяем удаленные в облаке
+         if (cloudNote && cloudNote.deleted) {
+           if (localNote && !localNote.deleted) {
+             console.log(`🗑️ Deleting locally: ${cloudNote.filenameLink}`);
+             await localDB.deleteFile(cloudNote.filenameLink);
+           }
+           continue;
+         }
+         
+         // ✅ 3. ПОТОМ проверяем новые заметки
+         if (localNote && !cloudNote) {
+           console.log(`☁️ Uploading new note: ${localNote.filenameLink}`);
+           await SyncManager.uploadToCloud(localDB, cloudDB, localNote);
+           successfullySynced.push(localNote);
+           continue;
+         }
+         
+         // ✅ 4. ПОТОМ скачиваем
+         if (cloudNote && !localNote) {
+           console.log(`📥 Downloading new note: ${cloudNote.filenameLink}`);
+           await SyncManager.downloadFromCloud(cloudDB, localDB, cloudNote);
+           continue;
+         }
+         
+         // ✅ 5. ПОТОМ сравниваем даты
+         if (localNote && cloudNote) {
+           const localDate = new Date(localNote.updated_at || 0);
+           const cloudDate = new Date(cloudNote.updated_at || 0);
+           
+           if (localDate > cloudDate) {
+             console.log(`☁️ Updating cloud (local newer): ${localNote.filenameLink}`);
+             await SyncManager.uploadToCloud(localDB, cloudDB, localNote);
+             successfullySynced.push(localNote);
+           } else if (cloudDate > localDate) {
+             console.log(`📥 Updating local (cloud newer): ${cloudNote.filenameLink}`);
+             await SyncManager.downloadFromCloud(cloudDB, localDB, cloudNote);
+           }
+         }
+       }
+   
+       // ============================================
+       // ШАГ 5: Очистка очереди
+       // ============================================
+       
+       if (successfullySynced.length > 0) {
+         removeSyncedNotes(successfullySynced);
+       }
+   
+       console.log(`✅ Month ${month} synced successfully`);
+       
+     } catch (error) {
+       console.error(`❌ Sync failed for month ${month}:`, error);
+       throw error;
+     }
+   }
     
-    if (successfullySynced.length > 0) {
-      removeSyncedNotes(successfullySynced);
-    }
-
-    console.log(`✅ Month ${month} synced successfully`);
-    
-  } catch (error) {
-    console.error(`❌ Sync failed for month ${month}:`, error);
-    throw error;
-  }
-}
-
   /**
    * Загрузить заметку в облако
    */
@@ -228,8 +229,8 @@ export class SyncManager {
       const now = new Date();
       const months = new Set<string>();
       
-      // Синхронизируем последние 6 месяцев
-      for (let i = 0; i < 6; i++) {
+      // Синхронизируем последние 2 месяца
+      for (let i = 0; i < 2; i++) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const prefix = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}`;
         months.add(prefix);

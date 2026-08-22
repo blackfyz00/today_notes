@@ -3,6 +3,5 @@ export interface IAuthProvider {
   name: string;
   icon: string;
   color: string;
-  authorize(): Promise<string>;
-  setOnAuthRequired?(callback: () => void): void; // для обновления токена
+  authorize(): Promise<{ access_token: string; expires_in: number }>;
 }

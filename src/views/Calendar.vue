@@ -2,7 +2,7 @@
 <template>
   <div class="main-calendar" @touchstart="onTouchStart" @touchend="onTouchEnd">
     <h1 @click="onToday">{{ t('Calendar.name') }}</h1>
-    <div class="mobile-menu-toggle" @click="openNotesForDay(new Date())">+</div>
+    <div class="mobile-menu-toggle" @click="handleDayClick(new Date())">+</div>
 
     <div class="preHead">
       <div class="stdBtn" @click="prevMonth">←</div>
@@ -42,178 +42,27 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { watch } from 'vue'
 import { useCalendarDates as useCalendar } from '@/composables/useCalendar'
-import { LocalDB } from '@/services/IndexedDB'
-import { modalService } from '@/services/ModalService'
-import { useTechnicalStore } from '@/services/TechnicalStore'
-import type { IMonthStats } from '@/interfaces/IMonthStats'
-import NotesModalView from './NotesModalView.vue'
-import MonthPickerModal from './MonthPickerModal.vue'
-import NewNoteModal from './NewNoteModal.vue'
 
 const { t } = useI18n()
-const technicalStore = useTechnicalStore()
-const { currentDate, days, prevMonth, nextMonth } = useCalendar()
-
-const selectedDate = ref<Date | null>(null)
-const currentMonthStats = ref<IMonthStats[]>([])
-const isLoading = ref(false)
-
-let touchStartX = 0
-let touchEndX = 0
-const minSwipeDistance = 50
-
-// ✅ Реактивная карта статистики
-const monthStatsMap = computed(() => {
-  const map = new Map<string, number>()
-  
-  currentMonthStats.value.forEach((stat: IMonthStats) => {
-    if (stat.date instanceof Date) {
-      const year = stat.date.getFullYear()
-      const month = String(stat.date.getMonth() + 1).padStart(2, "0")
-      const day = String(stat.date.getDate()).padStart(2, "0")
-      const dateKey = `${year}-${month}-${day}`
-      map.set(dateKey, stat.totalNotes)
-    }
-  })
-  
-  return map
-})
-
-const getNotesCountForDay = (date: Date): number => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  const dateKey = `${year}-${month}-${day}`
-  return monthStatsMap.value.get(dateKey) || 0
-}
-
-const openMonthPicker = () => {
-  const modalId = modalService.open(MonthPickerModal, {
-    currentDate: currentDate.value,
-    onSelect: (selectedDate: Date) => {
-      currentDate.value = selectedDate // ✅ Если currentDate - ref
-    },
-    onClose: () => {
-      modalService.close(modalId)
-    }
-  })
-}
-
-const onTouchStart = (e: TouchEvent) => {
-  touchStartX = e.touches[0]!.clientX
-}
-
-const onTouchEnd = (e: TouchEvent) => {
-  touchEndX = e.changedTouches[0]!.clientX
-  const diff = touchEndX - touchStartX
-  
-  if (Math.abs(diff) < minSwipeDistance) return
-  
-  if (diff > 0) {
-    prevMonth()
-  } else {
-    nextMonth()
-  }
-}
-
-const handleDayClick = (fullDate: Date) => {
-  const notesCount = getNotesCountForDay(fullDate)
-  
-  // Функция открытия редактора
-  const openNoteEditor = (notesModalId: string) => {
-    const editorModalId = modalService.open(NewNoteModal, {
-      selectedDate: fullDate,
-      isEditing: false,
-      note: null,
-      onSaved: async (newNoteData: any) => {
-        console.log('Заметка сохранена:', newNoteData)
-        
-        // Закрываем редактор
-        modalService.close(editorModalId)
-        
-        // ❌ НЕ закрываем список здесь
-        
-        await loadStatsAndSync()
-        
-        // ✅ Закрываем старый список и открываем новый
-        modalService.close(notesModalId)
-        const newModalId = modalService.open(NotesModalView, {
-          selectedDate: fullDate,
-          onClose: async () => {
-            modalService.close(newModalId)
-            await loadStatsAndSync()
-          },
-          onCreateNew: () => openNoteEditor(newModalId)
-        })
-      },
-      onClose: () => {
-        // ❌ Закрываем редактор, но НЕ трогаем список
-        modalService.close(editorModalId)
-        // Список остается открытым, показывая старые данные
-      }
-    })
-  }
-  
-  // Открываем список
-  const notesModalId = modalService.open(NotesModalView, {
-    selectedDate: fullDate,
-    onClose: async () => {
-      modalService.close(notesModalId)
-      await loadStatsAndSync()
-    },
-    onCreateNew: () => openNoteEditor(notesModalId)
-  })
-  
-  if (!notesCount) {
-    setTimeout(() => openNoteEditor(notesModalId), 100)
-  }
-}
-
-// === Локализация и Ключи UI ===
-const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-
-const thisMonth = computed(() => {
-  const monthIndex = currentDate.value.getMonth()
-  return t(`Calendar.months.${monthKeys[monthIndex]}`)
-})
-
-const nameDays = computed(() => {
-  return dayKeys.map((key: string) => t(`Calendar.days.${key}`))
-})
-
-const onMonthSelect = (newDate: Date) => {
-  currentDate.value = newDate
-}
-
-const onToday = () => {
-  currentDate.value = new Date()
-}
-
-const loadStatsAndSync = async () => {
-  if (isLoading.value) return 
-  
-  try {
-    isLoading.value = true
-    technicalStore.setStatus('loading')
-    
-    if (!technicalStore.isOnline) {
-      technicalStore.setStatus('no_network')
-      return
-    }
-    
-    const stats = await LocalDB.getMonthStats(currentDate.value)
-    currentMonthStats.value = stats
-    technicalStore.setStatus('success')
-  } catch (error) {
-    console.error("Ошибка при получении статистики файлов:", error)
-    technicalStore.setStatus('error')
-  } finally {
-    isLoading.value = false
-  }
-}
+const {
+  currentDate,
+  days,
+  prevMonth,
+  nextMonth,
+  onToday,
+  onTouchStart,
+  onTouchEnd,
+  openMonthPicker,
+  monthStatsMap,
+  getNotesCountForDay,
+  loadStatsAndSync,
+  formatDateKey,
+  thisMonth,
+  nameDays,
+  handleDayClick
+} = useCalendar()
 
 watch(
   () => currentDate.value,

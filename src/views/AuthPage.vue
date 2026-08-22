@@ -1,114 +1,117 @@
-<!-- src/views/AuthPage.vue -->
-<template>
-  <div class="auth-container">
-    <h1 :class="{ 'error-text': isError }">Добро пожаловать!</h1>
-    
-    <p class="main-text">
-      Войдите через облачный сервис, чтобы ваши заметки и медиафайлы сохранялись в вашем личном хранилище.
-    </p>
-
-    <div 
-      class="form" 
-      :class="{ 'error': isError, 'shake-animation': isShaking }"
-    >
-      <h2>Авторизация</h2>
-
-      <transition name="fade">
-        <p v-if="isError" class="error-message">
-          ❌ Ошибка авторизации. Убедитесь, что вы выбрали аккаунт и разрешили доступ к диску.
+    <!-- src/views/AuthPage.vue -->
+    <template>
+    <div class="auth-container">
+        <h1 :class="{ 'error-text': isError }">Добро пожаловать!</h1>
+        
+        <p class="main-text">
+        Войдите через облачный сервис, чтобы ваши заметки и медиафайлы сохранялись в вашем личном хранилище.
         </p>
-      </transition>
-
-      <div class="google-btn-wrapper" v-for="s in services" :key="s.id">
-        <button 
-          @click="login(s)" 
-          class="submit-btn google-btn"
-          :style="{ backgroundColor: s.color || '#4285F4' }"
-          :disabled="isLoading"
+    
+        <div 
+        class="form" 
+        :class="{ 'error': isError, 'shake-animation': isShaking }"
         >
-          <!-- Использование иконки из вашего интерфейса провайдера -->
-          <span class="btn-icon">📁</span>
-          {{ isLoading ? 'Подключение...' : `Войти через ${s.name}` }}
-        </button>
-      </div>
-
-      <p class="info-text">
-        Приложению потребуется доступ только к файлам, созданным этим приложением.
-      </p>
+        <h2>Авторизация</h2>
+    
+        <transition name="fade">
+            <p v-if="isError" class="error-message">
+            ❌ Ошибка авторизации. Убедитесь, что вы выбрали аккаунт и разрешили доступ к диску.
+            </p>
+        </transition>
+    
+        <div class="google-btn-wrapper" v-for="s in services" :key="s.id">
+            <button 
+            @click="login(s)" 
+            class="auth-btn"
+            :style="{ backgroundColor: s.color || '#4285F4' }"
+            :disabled="isLoading"
+            >
+            <!-- Использование иконки из вашего интерфейса провайдера -->
+            <span class="btn-icon">📁</span>
+            {{ isLoading ? 'Подключение...' : `Войти через ${s.name}` }}
+            </button>
+        </div>
+    
+        <p class="info-text">
+            Приложению потребуется доступ только к файлам, созданным этим приложением.
+        </p>
+        </div>
     </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { ref, computed} from 'vue';
-import { useRouter } from 'vue-router';
-
-import { AuthFactory } from "@/services/AuthFactory";
-import type { IAuthProvider } from "@/interfaces/IAuthProvider";
-
-import { type IServiceUI } from '@/interfaces/IServiceUI';
-import { useTechnicalStore } from '@/services/TechnicalStore';
-import { useSyncStore } from '@/services/SyncStore';
-
-const syncStore = useSyncStore()
-const router = useRouter();
-const technicalStore = useTechnicalStore();
-const isLoading = computed(() => technicalStore.status === 'loading');
-const isError = computed(() => technicalStore.status === 'error');
-const isShaking = ref(false)
-import { modalService } from '@/services/ModalService'; 
-import rewriteTokenAuth from '@/views/rewriteTokenAuth.vue';
-
-const services = AuthFactory.getAvailableProviders();
-
-const openReauthModal = (providerId: string) => {
-  const modalId = modalService.open(rewriteTokenAuth, {
-    providerId,
-    onClose: () => {
-      modalService.close(modalId)
-      router.push('/login')
-    },
-    onSuccess: async () => {
-      await router.push('/')
-    }
-  })
-}
-
-const login = async (service: IServiceUI) => {
-  try {
-    technicalStore.setStatus('loading')
+    </template>
     
-    const provider: IAuthProvider = AuthFactory.getProvider(service.id)
-    console.log(`🔐 Инициализация входа через провайдер: ${provider.name}`)
+    <script setup lang="ts">
+    import { ref, computed} from 'vue';
+    import { useRouter } from 'vue-router';
     
-    if (provider.setOnAuthRequired) {
-      provider.setOnAuthRequired(() => {
-        console.log(`🔐 Токен протух (${provider.id}), открываем модалку`)
-        openReauthModal(provider.id) 
-      })
+    import { AuthFactory } from "@/services/AuthFactory";
+    import type { IAuthProvider } from "@/interfaces/IAuthProvider";
+    
+    import { type IServiceUI } from '@/interfaces/IServiceUI';
+    import { useTechnicalStore } from '@/services/TechnicalStore';
+    import { useSyncStore } from '@/services/SyncStore';
+    
+    const syncStore = useSyncStore()
+    const router = useRouter();
+    const technicalStore = useTechnicalStore();
+    const isLoading = computed(() => technicalStore.status === 'loading');
+    const isError = computed(() => technicalStore.status === 'error');
+    const isShaking = ref(false)
+    import { modalService } from '@/services/ModalService'; 
+    import ReauthModal from '@/views/ReauthModal.vue';
+    
+    const services = AuthFactory.getAvailableProviders();
+    
+    const openReauthModal = (providerId: string) => {
+    const modalId = modalService.open(ReauthModal, {
+        providerId,
+        onClose: () => {
+        modalService.close(modalId)
+        router.push('/login')
+        },
+        onSuccess: async () => {
+        await router.push('/')
+        }
+    })
     }
     
-    const token = await provider.authorize()
-    console.log("✅ Токен успешно получен")
+    const login = async (service: IServiceUI) => {
+    try {
+        technicalStore.setStatus('loading')
+        
+        const provider: IAuthProvider = AuthFactory.getProvider(service.id)
+        console.log(`🔐 Инициализация входа через провайдер: ${provider.name}`)
+        
+        if (provider.setOnAuthRequired) {
+        provider.setOnAuthRequired(() => {
+            console.log(`🔐 Токен протух (${provider.id}), открываем модалку`)
+            openReauthModal(provider.id) 
+        })
+        }
+        
+        const authResult = await provider.authorize();
+        technicalStore.setAuth(
+        authResult.access_token,
+        provider.id,
+        authResult.expires_in
+        );
+        console.log("✅ Токен успешно получен") 
+        technicalStore.setStatus('success')
+        
+        await router.push('/')
+        syncStore.startPeriodicSync(120000)
+        
+    } catch (error) {
+        console.error("❌ Ошибка авторизации:", error)
+        
+        isShaking.value = true
+        setTimeout(() => {
+        isShaking.value = false
+        }, 500)
+        technicalStore.setStatus('error')
+    }
+    }
     
-    technicalStore.setAuth(token, provider.id)
-    technicalStore.setStatus('success')
-    
-    await router.push('/')
-    syncStore.startPeriodicSync(120000)
-    
-  } catch (error) {
-    console.error("❌ Ошибка авторизации:", error)
-    
-    isShaking.value = true
-    setTimeout(() => {
-      isShaking.value = false
-    }, 500)
-    technicalStore.setStatus('error')
-  }
-}
-
-</script>
+    </script>
 
 <style scoped>
 .auth-container {

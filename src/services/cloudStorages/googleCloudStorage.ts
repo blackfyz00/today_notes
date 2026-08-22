@@ -4,6 +4,7 @@ import type { IMonthStats } from "@/interfaces/IMonthStats";
 import { Note } from "@/services/Note";
 import { providers } from "@/services/AuthFactory";
 import { GoogleAuthProvider } from "@/services/providers/GoogleProvider";
+import { useTechnicalStore } from "@/services/TechnicalStore";
 
 interface DriveFile {
   id: string;
@@ -30,7 +31,7 @@ export class GoogleCloudStorage implements ICloudStorage {
   private readonly MIN_INTERVAL = 100;
   private rootFolderId: string | null = null;
   private provider = providers.google as GoogleAuthProvider;
-
+    
   private constructor() {}
 
   static getInstance(): GoogleCloudStorage {
@@ -85,16 +86,18 @@ export class GoogleCloudStorage implements ICloudStorage {
   this.rootFolderId = newFolder.id;
   console.log(`📁 Created app folder: ${this.APP_FOLDER_NAME} (${this.rootFolderId})`);
   return this.rootFolderId;
-}
+  }
+  private getStore() {
+      return useTechnicalStore();
+    } 
   // ========== AUTH ==========
   private async getAuthToken(): Promise<string> {
-    try {
-    return await this.provider.getValidToken();
-    } catch (error) {
-    console.error('❌ Auth error:', error);
-    throw new Error('Authentication failed. Please login again.');
+      const token = await this.getStore().getValidToken();
+      if (!token) {
+        throw new Error('Authentication failed. Please login again.');
+      }
+      return token;
     }
-  }
   
 // ========== HTTP ==========
 private async request(url: string, options: RequestInit = {}, retry = 0): Promise<Response> {
@@ -105,7 +108,7 @@ private async request(url: string, options: RequestInit = {}, retry = 0): Promis
   this.lastRequest = Date.now();
 
   try {
-    const token = await this.getAuthToken();
+    const token = await this.getStore().getValidToken();
     
     const headers = new Headers(options.headers || {});
     headers.set("Authorization", `Bearer ${token}`);
@@ -514,28 +517,60 @@ private async request(url: string, options: RequestInit = {}, retry = 0): Promis
     return fullPath;
 }
 
-  async deleteFile(filename: string): Promise<void> {
-    if (filename.includes('.deleted')) return;
+// src/services/cloudStorages/googleCloudStorage.ts
 
-    const parsed = this.parseFilename(filename);
-    if (!parsed) return;
-
-    const folderId = await this.findFolderByPath(parsed.targetDate);
-    if (!folderId) return;
-
-    const fileId = await this.findFileInFolder(folderId, parsed.cleanName);
-    if (!fileId) return;
-
-    await this.request(
-      `${this.API_BASE}/files/${fileId}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: `${parsed.cleanName}.deleted` })
-      }
-    );
+async deleteFile(filename: string): Promise<void> {
+  console.log(`🔴🔴🔴 deleteFile CALLED with: ${filename}`); 
+  
+  // ✅ Проверка на .deleted
+  if (filename.includes('.deleted')) {
+    console.log(`⏭️ Already deleted: ${filename}`);
+    return;
   }
 
+  const parsed = this.parseFilename(filename);
+  if (!parsed) {
+    console.error(`❌ Invalid filename: ${filename}`);
+    return;
+  }
+
+  console.log(`📁 Parsed:`, parsed); // ← ДОБАВИТЬ
+
+  const folderId = await this.findFolderByPath(parsed.targetDate);
+  if (!folderId) {
+    console.error(`❌ Folder not found for: ${parsed.targetDate}`);
+    return;
+  }
+
+  const fileId = await this.findFileInFolder(folderId, parsed.cleanName);
+  if (!fileId) {
+    console.error(`❌ File not found: ${parsed.cleanName}`);
+    return;
+  }
+
+  console.log(`🗑️ Renaming file: ${parsed.cleanName} → ${parsed.cleanName}.deleted`); // ← ДОБАВИТЬ
+
+  // ✅ Переименовываем в .deleted
+  const response = await this.request(
+    `${this.API_BASE}/files/${fileId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        name: `${parsed.cleanName}.deleted` 
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ Failed to rename file: ${errorText}`);
+    throw new Error(`Failed to rename file: ${errorText}`);
+  }
+
+  console.log(`✅ File renamed to: ${parsed.cleanName}.deleted`);
+}
+    
 async getNotesForDay(day: Date): Promise<Note[]> {
   const folderId = await this.findFolderByPath(day);
   if (!folderId) return [];
@@ -602,6 +637,7 @@ async getNotesForDay(day: Date): Promise<Note[]> {
 
   return notes;
 }
+    
   async getMonthStats(month: Date): Promise<IMonthStats[]> {
   const year = month.getFullYear();
   const monthStr = String(month.getMonth() + 1).padStart(2, "0");

@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { Note } from '@/services/Note'
 import { SyncManager } from '@/services/SyncManager'
-import { IndexedDB } from '@/services/IndexedDB'
+import { LocalDB } from '@/services/IndexedDB'
 import { GoogleCloud } from '@/services/cloudStorages/googleCloudStorage'
 import { ZipPacker } from '@/services/ZipPacker'
 import type { InteractiveDoc } from '@/services/InteractiveDoc'
@@ -16,14 +16,14 @@ export const useSyncStore = defineStore('syncStore', () => {
   const syncErrors = ref<string[]>([])
   const syncProgress = ref<{ current: number; total: number } | null>(null)
   const technicalStore = useTechnicalStore();
-
+  const deleteQueue = ref<string[]>([])
+    
   const isAuthError = ref(false)
   let isStopping = false
   let syncTimeout: ReturnType<typeof setTimeout> | null = null
   let syncTimer: ReturnType<typeof setInterval> | null = null
 
   // ==================== STORAGE ====================
-  const localDB = IndexedDB.getInstance()
   const cloudDB = GoogleCloud
 
   // ==================== GETTERS ====================
@@ -73,90 +73,130 @@ export const useSyncStore = defineStore('syncStore', () => {
     })
   }
 
+   function addToDeleteQueue(filename: string) {
+     if (!deleteQueue.value.includes(filename)) {
+       deleteQueue.value.push(filename)
+       console.log(`🗑️ Добавлено в очередь удаления: ${filename}`)
+     }
+   }
+
+  async function processDeletions() {
+     if (deleteQueue.value.length === 0) return
+     
+     console.log(`🗑️ Обработка ${deleteQueue.value.length} удалений...`)
+     
+     const toRemove: string[] = []
+     
+     for (const filename of deleteQueue.value) {
+       try {
+         await cloudDB.deleteFile(filename)
+         console.log(`✅ Удалено из облака: ${filename}`)
+         toRemove.push(filename)
+       } catch (error) {
+         console.error(`❌ Ошибка удаления ${filename}:`, error)
+         syncErrors.value.push(`Failed to delete ${filename}: ${error}`)
+       }
+     }
+     
+     deleteQueue.value = deleteQueue.value.filter(f => !toRemove.includes(f))
+   }
+    
   /**
    * Обработать очередь синхронизации
    */
-async function processQueue() {
-    if (isStopping) return
-    if (isAuthError.value) {
-    console.log('⛔ Auth error flag set, skipping processQueue')
-    return
-    }
-    if (!isOnline.value) {
-        console.log('📡 Offline mode - sync postponed')
-        return
-    }
-  
-  technicalStore.setStatus('loading')
-  syncErrors.value = []
-  syncProgress.value = null
-
-  try {
-    const monthsToSync = new Set<string>()
+   async function processQueue() {
+       // ✅ 1. ПРОВЕРКА БЛОКИРОВКИ (ДОБАВИТЬ)
+       if (!technicalStore.canSync()) {
+           console.log('⛔ Синхронизация заблокирована — требуется переавторизация');
+           return;
+       }
+   
+       if (isStopping) return
+       if (isAuthError.value) {
+           console.log('⛔ Auth error flag set, skipping processQueue')
+           return
+       }
+       if (!isOnline.value) {
+           console.log('📡 Offline mode - sync postponed')
+           return
+       }
+   
+       technicalStore.startSync();
+   
+       technicalStore.setStatus('loading')
+       syncErrors.value = []
+       syncProgress.value = null
+   
+       try {
+           await processDeletions()
+           const monthsToSync = new Set<string>()
+           
+           for (const note of queue.value) {
+               const path = note.filenameLink
+               const parts = path.split('/')
+               if (parts.length >= 2) {
+                   monthsToSync.add(`${parts[0]}/${parts[1]}`)
+               }
+           }
+   
+           if (monthsToSync.size === 0) {
+               const now = new Date()
+               monthsToSync.add(`${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`)
+           }
+   
+           syncProgress.value = { current: 0, total: monthsToSync.size }
+           const syncedNotes: Note[] = []
+           
+           for (const monthPrefix of monthsToSync) {
+               try {
+                   await SyncManager.syncMonth(
+                       monthPrefix,
+                       queue.value,
+                       removeSyncedNotes,
+                       LocalDB,
+                       cloudDB
+                   )
+                   
+                   const [year, month] = monthPrefix.split('/').map(Number)
+                   const monthDate = new Date(year!, month! - 1, 1)
+                   const monthStats = await LocalDB.getMonthStats(monthDate)
+                   
+                   for (const stat of monthStats) {
+                       const dayNotes = await LocalDB.getNotesForDay(stat.date)
+                       syncedNotes.push(...dayNotes)
+                   }
+                   
+                   if (syncProgress.value) {
+                       syncProgress.value.current++
+                   }
+                   
+               } catch (error) {
+                   console.error(`❌ Sync failed for ${monthPrefix}:`, error)
+                   syncErrors.value.push(`Failed to sync ${monthPrefix}: ${error}`)
+                   technicalStore.setStatus('error')
+                   throw error
+               }
+           }
+   
+           if (syncedNotes.length > 0) {
+               removeSyncedNotes(syncedNotes)
+           }
+   
+           lastSyncTime.value = new Date()
+           syncProgress.value = null
+           technicalStore.setStatus('success')
+           
+       } catch (error) {
+           console.error('❌ Process queue error:', error)
+           syncErrors.value.push(`Process queue error: ${error}`)
+           technicalStore.setStatus('error')
+           throw error
+       } finally {
+           // ✅ 3. ЗАВЕРШЕНИЕ СИНХРОНИЗАЦИИ (ДОБАВИТЬ)
+           technicalStore.finishSync();
+       }
+   }
     
-    for (const note of queue.value) {
-      const path = note.filenameLink
-      const parts = path.split('/')
-      if (parts.length >= 2) {
-        monthsToSync.add(`${parts[0]}/${parts[1]}`)
-      }
-    }
-
-    if (monthsToSync.size === 0) {
-      const now = new Date()
-      monthsToSync.add(`${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`)
-    }
-
-    syncProgress.value = { current: 0, total: monthsToSync.size }
-    const syncedNotes: Note[] = []
-    
-    for (const monthPrefix of monthsToSync) {
-      try {
-        await SyncManager.syncMonth(
-          monthPrefix,
-          queue.value,
-          removeSyncedNotes,
-          localDB,
-          cloudDB
-        )
-        
-        const [year, month] = monthPrefix.split('/').map(Number)
-        const monthDate = new Date(year!, month! - 1, 1)
-        const monthStats = await localDB.getMonthStats(monthDate)
-        
-        for (const stat of monthStats) {
-          const dayNotes = await localDB.getNotesForDay(stat.date)
-          syncedNotes.push(...dayNotes)
-        }
-        
-        if (syncProgress.value) {
-          syncProgress.value.current++
-        }
-        
-      } catch (error) {
-        console.error(`❌ Sync failed for ${monthPrefix}:`, error)
-        syncErrors.value.push(`Failed to sync ${monthPrefix}: ${error}`)
-        technicalStore.setStatus('error')
-        throw error // ✅ ПРОБРАСЫВАЕМ ОШИБКУ
-      }
-    }
-
-    if (syncedNotes.length > 0) {
-      removeSyncedNotes(syncedNotes)
-    }
-
-    lastSyncTime.value = new Date()
-    syncProgress.value = null
-    technicalStore.setStatus('success') // ✅ Только если всё успешно
-    
-  } catch (error) {
-    console.error('❌ Process queue error:', error)
-    syncErrors.value.push(`Process queue error: ${error}`)
-    technicalStore.setStatus('error')
-    throw error // ✅ ПРОБРАСЫВАЕМ ОШИБКУ
-  }
-}
-
 function stopSyncLogout() {
   isStopping = true
   console.log('🧹 Полная остановка синхронизации');
@@ -188,7 +228,7 @@ function stopSyncLogout() {
   async function getNotesForDay(day: Date): Promise<Note[]> {
     try {
       // Сначала пробуем получить локально
-      const localNotes = await localDB.getNotesForDay(day)
+      const localNotes = await LocalDB.getNotesForDay(day)
       
       if (localNotes.length > 0) {
         console.log(`📚 Found ${localNotes.length} notes locally for ${day.toDateString()}`)
@@ -204,7 +244,7 @@ function stopSyncLogout() {
         for (const note of cloudNotes) {
           const blob = await cloudDB.getFile(note.filenameLink)
           if (blob) {
-            await localDB.saveFile(note.filenameLink, blob)
+            await LocalDB.saveFile(note.filenameLink, blob)
           }
         }
         
@@ -225,7 +265,7 @@ function stopSyncLogout() {
    */
   async function getNotesForMonth(month: Date): Promise<Note[]> {
     try {
-      const stats = await localDB.getMonthStats(month)
+      const stats = await LocalDB.getMonthStats(month)
       const notes: Note[] = []
       
       for (const stat of stats) {
@@ -249,7 +289,7 @@ function stopSyncLogout() {
       const blob = await ZipPacker.pack(note, doc)
       
       // 2. Сохраняем локально
-      await localDB.saveFile(note.filenameLink, blob)
+      await LocalDB.saveFile(note.filenameLink, blob)
       
       // 3. Добавляем в очередь синхронизации
       addToQueue(note)
@@ -262,29 +302,29 @@ function stopSyncLogout() {
     }
   }
 
-  /**
-   * Удалить заметку
-   */
   async function deleteNote(filename: string): Promise<void> {
-    try {
-      // 1. Удаляем локально
-      await localDB.deleteFile(filename)
-      
-      // 2. Удаляем из облака (если есть интернет)
-      if (isOnline.value) {
-        await cloudDB.deleteFile(filename)
+      try {
+        // 1. Удаляем локально (soft delete)
+        await LocalDB.deleteFile(filename)
+        
+        // 2. Добавляем в очередь удаления
+        addToDeleteQueue(filename)
+                    
+        // 3. Удаляем из очереди синхронизации
+        queue.value = queue.value.filter(item => item.filenameLink !== filename)
+        
+        // 4. Если есть интернет — сразу удаляем
+        if (isOnline.value) {
+          await processDeletions()
+        }
+        
+        console.log(`🗑️ Note deleted: ${filename}`)
+        
+      } catch (error) {
+        console.error('❌ Failed to delete note:', error)
+        throw error
       }
-      
-      // 3. Удаляем из очереди
-      queue.value = queue.value.filter(item => item.filenameLink !== filename)
-      
-      console.log(`🗑️ Note deleted: ${filename}`)
-      
-    } catch (error) {
-      console.error('❌ Failed to delete note:', error)
-      throw error
     }
-  }
 
   /**
    * Полная синхронизация
@@ -295,7 +335,7 @@ function stopSyncLogout() {
       return
     }
     
-    await SyncManager.fullSync(localDB, cloudDB)
+    await SyncManager.fullSync(LocalDB, cloudDB)
     lastSyncTime.value = new Date()
   }
 
@@ -346,19 +386,19 @@ function stopSyncLogout() {
     syncErrors.value = []
   }
 
-  /**
-   * Очистить очередь (принудительно)
-   */
-  function clearQueue() {
-    queue.value = []
-    syncErrors.value = []
-    console.log('🧹 Queue cleared')
-  }
+   function clearQueue() {
+     queue.value = []
+     deleteQueue.value = [] // ✅ ДОБАВИТЬ ЭТУ СТРОКУ
+     syncErrors.value = []
+     console.log('🧹 Queue cleared')
+   }
 
+  // ==================== RETURN ====================
   // ==================== RETURN ====================
   return {
     // State
     queue,
+    deleteQueue,        // ✅ НОВО
     lastSyncTime,
     syncErrors,
     syncProgress,
@@ -370,6 +410,8 @@ function stopSyncLogout() {
     
     // Actions
     addToQueue,
+    addToDeleteQueue,   
+    processDeletions,
     stopSyncLogout,
     removeSyncedNotes,
     processQueue,

@@ -4,7 +4,7 @@ import type { ICloudStorage } from "@/interfaces/ICloudStorage";
 import type { IMonthStats } from "@/interfaces/IMonthStats"; 
 import { Note } from "@/services/Note";
 
-export class IndexedDB implements ICloudStorage {
+class IndexedDB implements ICloudStorage {
   private dbName = "app_cloud_storage";
   private dbVersion = 1;
   private dbPromise: Promise<IDBPDatabase> | null = null;
@@ -178,46 +178,66 @@ export class IndexedDB implements ICloudStorage {
     }
   }
 
-    async getNotesForDay(day: Date): Promise<Note[]> {
+  // src/services/IndexedDB.ts
+  
+  async getNotesForDay(day: Date): Promise<Note[]> {
     const db = await this.initDB();
     
     const year = day.getFullYear();
     const month = String(day.getMonth() + 1).padStart(2, "0");
     const date = String(day.getDate()).padStart(2, "0");
     const dayPrefix = `${year}/${month}/${date}/`;
-
+  
     const range = IDBKeyRange.bound(dayPrefix, dayPrefix + "\uffff");
     const tx = db.transaction("files", "readonly");
     const store = tx.objectStore("files");
     
     const rawFiles: { fullPath: string; blob: Blob }[] = [];
     let cursor = await store.openCursor(range);
-
+  
     while (cursor) {
       const fullPath = cursor.key as string; 
-    
-      if (!fullPath.includes('.deleted')) {
-        rawFiles.push({
-          fullPath,
-          blob: cursor.value as Blob
-        });
-      }
+      
+      rawFiles.push({
+        fullPath,
+        blob: cursor.value as Blob
+      });
+      
       cursor = await cursor.continue();
     }
-
-    // Подтягиваем ZipPacker для последующей распаковки в памяти
+  
     const { ZipPacker } = await import("@/services/ZipPacker");
     const notes: Note[] = [];
-
+  
     for (const file of rawFiles) {
+      const isDeleted = file.fullPath.includes('.deleted');
+      const cleanPath = file.fullPath.replace(/\.deleted$/, '');
+      
+      // ✅ Если файл удален — НЕ распаковываем!
+      if (isDeleted) {
+        const filename = file.fullPath.split("/").pop() || "unknown.idoc";
+        notes.push(
+          new Note({
+            id: filename.replace(".idoc", ""),
+            title: "Удаленная заметка",
+            filenameLink: cleanPath,
+            created_at: day.toISOString(),
+            deleted: true  // ✅ ВАЖНО!
+          })
+        );
+        console.log(`🗑️ Found deleted file (skipping unpack): ${file.fullPath}`);
+        continue; 
+      }
+      
+      // ✅ Только для НЕ удаленных файлов
       try {
         const { note: unpackedNote } = await ZipPacker.unpack(file.blob);
-
+  
         notes.push(
           new Note({
             id: unpackedNote.id,
             title: unpackedNote.title || "Без названия",
-            filenameLink: file.fullPath, 
+            filenameLink: file.fullPath,
             created_at: unpackedNote.created_at || day.toISOString(),
             updated_at: unpackedNote.updated_at || day.toISOString(),
             deleted: false
@@ -238,7 +258,7 @@ export class IndexedDB implements ICloudStorage {
         );
       }
     }
-
+  
     return notes;
   }
 

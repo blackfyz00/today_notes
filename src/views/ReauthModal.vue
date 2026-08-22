@@ -3,77 +3,74 @@
   <div class="reauth-overlay" @click.self="handleClose">
     <div class="reauth-card">
       <div class="icon">🔑</div>
-      <h3>Упс... Сессия истекла:(</h3>
-      <p>Но мы героически защитили ваши данные!</p>
-      <p>Чтобы продолжить работу, пожалуйста, обновите вход в облако.</p>
+      <h3>Требуется повторная авторизация</h3>
+      <p>Ваш токен доступа истек.</p>
+      
+      <!-- ✅ Используем store напрямую -->
+      <p v-if="technicalStore.isSyncing" class="warning-text">
+        ⏳ Подождите, идет синхронизация...
+      </p>
+      
+      <p v-if="errorMessage" class="error-text">
+        ❌ {{ errorMessage }}
+      </p>
       
       <button 
         @click="handleRefresh" 
         class="refresh-btn"
-        :disabled="isLoading"
+        :disabled="technicalStore.status === 'loading' || technicalStore.isSyncing"
       >
-        OK
+        {{ technicalStore.status === 'loading' ? 'Подключение...' : 'Обновить доступ' }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref } from 'vue';
 import { AuthFactory } from "@/services/AuthFactory";
 import { useTechnicalStore } from '@/services/TechnicalStore';
-import { modalService } from '@/services/ModalService';
 
-// ==================== PROPS ====================
 const props = defineProps<{
   show: boolean;     
   providerId: string;
 }>();
 
-// ==================== EMITS ====================
 const emit = defineEmits(['close', 'success']);
 
-// ==================== STORE ====================
+// ✅ Просто используем store
 const technicalStore = useTechnicalStore();
-const router = useRouter();
+const errorMessage = ref<string | null>(null);
 
-// ==================== COMPUTED ====================
-const isLoading = computed(() => technicalStore.status === 'loading');
-
-// ==================== METHODS ====================
 const handleRefresh = async () => {
-  if (isLoading.value) return;
+  // ✅ Проверяем напрямую из store
+  if (technicalStore.status === 'loading' || technicalStore.isSyncing) return;
   
+  errorMessage.value = null;
   technicalStore.setStatus('loading');
 
   try {
     const provider = AuthFactory.getProvider(props.providerId);
-    const token = await provider.authorize();
+    const authResult = await provider.authorize();
     
-    console.log(`✅ Сессия для ${provider.name} успешно обновлена`);
-    
-    // Обновляем токен
-    technicalStore.setAuth(token, props.providerId);
+    technicalStore.setAuth(
+      authResult.access_token,
+      props.providerId,
+      authResult.expires_in
+    );
     technicalStore.setStatus('success');
     
-    // Уведомляем об успехе
-    emit('success', token);
-    
-    // Закрываем модалку
+    emit('success', authResult.access_token);
     handleClose();
     
-  } catch (error) {
-    console.error(`❌ Не удалось обновить сессию:`, error);
+  } catch (error: any) {
+    console.error('❌ Ошибка обновления:', error);
+    errorMessage.value = error?.message || 'Не удалось обновить сессию';
     technicalStore.setStatus('error');
-    
-    // Можно показать ошибку внутри модалки
-    // Или закрыть и показать ErrorOverlay
   }
 };
 
 const handleClose = () => {
-  // Просто эмитим событие close, ModalManager сам закроет
   emit('close');
 };
 </script>

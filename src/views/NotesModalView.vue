@@ -30,35 +30,38 @@
         </div>
         <h3>{{ t("Notes.noNotes") }}</h3>
         <p class="empty-subtext">{{ t("Notes.noNoteslog") }}</p>
+        <button class="create-btn" @click="createNote">
+        Создать заметку
+        </button>
       </div>
 
       <!-- Сетка заметок -->
       <div v-else class="notes-grid">
-        <div v-for="note in currentNotes" 
-          :key="note.id" 
-          class="note-card"
-          @click="editNote(note)">
-          <div class="note-header">
-            <span class="note-time">
-              {{ new Date(note.created_at || note.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-            </span>
-            <button class="delete-btn" @click.stop="handleDeleteNote(note)" title="Удалить заметку">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                <line x1="10" y1="11" x2="10" y2="17"></line>
-                <line x1="14" y1="11" x2="14" y2="17"></line>
-              </svg>
-            </button>
-          </div>
-          <h4 class="note-title">{{ note.title || 'Без названия' }}</h4>
-          <!-- Выводим реальный очищенный текст-превью, который подготовит скрипт -->
-          <p class="note-content">{{ note.previewText || 'Пустая заметка...' }}</p>
-        </div>
+          <button class="create-btn" @click="createNote">
+          Создать заметку
+          </button>
+            <div v-for="note in currentNotes" 
+                :key="note.id" 
+                class="note-card"
+                @click="editNote(note)">
+            <div class="note-header">
+                <span class="note-time">
+                    {{ new Date(note.created_at || note.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
+                </span>
+                <h4 class="note-title">{{ note.title || 'Без названия' }}</h4>
+                <button class="delete-btn" @click.stop="handleDeleteNote(note)" title="Удалить заметку">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                </button>
+            </div>
+            <!-- Выводим реальный очищенный текст-превью, который подготовит скрипт -->
+            <p class="note-content">{{ note.previewText || 'Пустая заметка...' }}</p>
+            </div>
       </div>
-      <button class="create-btn" @click="createNote">
-        Создать заметку
-      </button>
     </div>
   </div>
 </template>
@@ -90,48 +93,58 @@ const currentNotes = computed(() => rawNotes.value)
  * Загружает легкие объекты заметок, а затем по имени файла (filename) 
  * стягивает бинарники с диска для генерации превью
  */
-const loadNotesForDay = async () => {
-  if (!props.selectedDate) return;
-  
-  const notes = await LocalDB.getNotesForDay(props.selectedDate);
-  
-  const processedNotes = await Promise.all(
-    notes.map(async (note: any) => {
-      try {
-        if (!note.filenameLink) throw new Error('Missing filenameLink');
-
-        const fileBlob = await LocalDB.getFile(note.filenameLink);
-        if (!fileBlob) throw new Error('File not found');
-
-        const unpacked = await ZipPacker.unpack(fileBlob);
-        
-        const markdown: string = unpacked.doc.markdown;
-        
-        const markdownLines: string[] = markdown
-          .split('\n')
-          .map((line: string) => line.trim())
-          .filter((line: string) => line.length > 0 && !line.startsWith('![') && !line.startsWith(']('));
-        
-        const firstLine: string = markdownLines[0] || '';
-
-        const computedTitle: string = note.title && !note.title.startsWith('Note (') 
-          ? note.title 
-          : firstLine.replace(/^#+\s*/, '').trim() || 'No title';
-        
-        return {
-          ...note,
-          title: computedTitle,
-          previewText: markdown.trim() ? truncate(markdown, 120) : 'Empty note...'
-        };
-      } catch (e) {
-        console.error(`Error processing note file:`, e);
-        return { ...note, previewText: 'Error reading .idoc archive' };
-      }
-    })
-  );
-  rawNotes.value = processedNotes;
-};
-
+ const loadNotesForDay = async () => {
+   if (!props.selectedDate) return;
+   
+   // ✅ 1. Получаем все заметки (включая .deleted)
+   const notes = await LocalDB.getNotesForDay(props.selectedDate);
+   
+   // ✅ 2. Фильтруем удаленные (просто скипаем)
+   const activeNotes = notes.filter((note: any) => !note.deleted);
+   
+   // ✅ 3. Обрабатываем только активные заметки
+   const processedNotes = await Promise.all(
+     activeNotes.map(async (note: any) => {
+       try {
+         if (!note.filenameLink) throw new Error('Missing filenameLink');
+         
+         const fileBlob = await LocalDB.getFile(note.filenameLink);
+         if (!fileBlob) throw new Error('File not found');
+ 
+         const unpacked = await ZipPacker.unpack(fileBlob);
+         const markdown: string = unpacked.doc.markdown;
+         
+         const markdownLines: string[] = markdown
+           .split('\n')
+           .map((line: string) => line.trim())
+           .filter((line: string) => line.length > 0 && !line.startsWith('![') && !line.startsWith(']('));
+         
+         const firstLine: string = markdownLines[0] || '';
+ 
+         const computedTitle: string = note.title && !note.title.startsWith('Note (') 
+           ? note.title 
+           : firstLine.replace(/^#+\s*/, '').trim() || 'No title';
+         
+         return {
+           ...note,
+           title: computedTitle,
+           previewText: markdown.trim() ? truncate(markdown, 120) : 'Empty note...'
+         };
+         
+       } catch (e) {
+         console.error(`Error processing note file:`, e);
+         return { 
+           ...note, 
+           title: note.title || 'Ошибка загрузки',
+           previewText: '❌ Ошибка чтения файла'
+         };
+       }
+     })
+   );
+   
+   rawNotes.value = processedNotes;
+ };
+ 
 const closeModal = () => {
   emit('close');
 }
@@ -399,7 +412,6 @@ watch(() => props.selectedDate, () => {
 
 .create-btn {
   padding: 14px 32px;
-  margin-bottom: 2rem;
   background: linear-gradient(135deg, #3498db, #2ecc71);
   color: white;
   border: none;
@@ -492,7 +504,8 @@ watch(() => props.selectedDate, () => {
 }
 
 .note-content {
-  padding: 0 1.25rem 1.25rem;
+  padding: 0 1.25rem;
+  margin-top: 1.5rem;
   font-size: 1rem;
   line-height: 1.5;
   color: var(--text-secondary, #a0a0a0);
