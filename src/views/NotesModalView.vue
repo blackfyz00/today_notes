@@ -37,33 +37,84 @@
 
       <!-- Сетка заметок -->
       <div v-else class="notes-grid">
-          <button class="create-btn" @click="createNote">
+        <button class="create-btn" @click="createNote">
           Создать заметку
-          </button>
-            <div v-for="note in currentNotes" 
-                :key="note.id" 
+        </button>
+        
+        <!-- ВИРТУАЛЬНЫЙ СПИСОК ДЛЯ БОЛЬШОГО КОЛИЧЕСТВА ЗАМЕТОК -->
+        <DynamicScroller
+          v-if="currentNotes.length > 20"
+          :items="currentNotes"
+          :min-item-size="160"
+          class="scroller"
+          key-field="id"
+        >
+          <template #default="{ item, index, active }">
+            <DynamicScrollerItem
+              :item="item"
+              :active="active"
+              :size-dependencies="[item.previewText, item.title]"
+            >
+              <div 
                 class="note-card"
-                @click="editNote(note)">
-            <div class="note-header">
-                <span class="note-time">
-                    {{ new Date(note.created_at || note.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}
-                </span>
-                <h4 class="note-title">{{ note.title || 'Без названия' }}</h4>
-                <button class="delete-btn" @click.stop="handleDeleteNote(note)" title="Удалить заметку">
+                @click="editNote(item)"
+              >
+                <div class="note-header">
+                  <span class="note-time">
+                    {{ formatTime(item.created_at || item.updated_at) }}
+                  </span>
+                  <h4 class="note-title">{{ item.title || 'Без названия' }}</h4>
+                  <button 
+                    class="delete-btn" 
+                    @click.stop="handleDeleteNote(item)" 
+                    :title="$t('Notes.delete')"
+                  >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <line x1="10" y1="11" x2="10" y2="17"></line>
+                      <line x1="14" y1="11" x2="14" y2="17"></line>
                     </svg>
-                </button>
+                  </button>
+                </div>
+                <p class="note-content">{{ item.previewText || 'Пустая заметка...' }}</p>
+              </div>
+            </DynamicScrollerItem>
+          </template>
+        </DynamicScroller>
+      
+        <!-- ОБЫЧНЫЙ СПИСОК ДЛЯ МАЛЕНЬКОГО КОЛИЧЕСТВА -->
+        <template v-else>
+          <div
+            v-for="note in currentNotes"
+            :key="note.id"
+            class="note-card"
+            @click="editNote(note)"
+          >
+            <div class="note-header">
+              <span class="note-time">
+                {{ formatTime(note.created_at || note.updated_at) }}
+              </span>
+              <h4 class="note-title">{{ note.title || 'Без названия' }}</h4>
+              <button 
+                class="delete-btn" 
+                @click.stop="handleDeleteNote(note)" 
+                :title="$t('Notes.delete')"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
             </div>
-            <!-- Выводим реальный очищенный текст-превью, который подготовит скрипт -->
             <p class="note-content">{{ note.previewText || 'Пустая заметка...' }}</p>
-            </div>
+          </div>
+        </template>
+      </div>
       </div>
     </div>
-  </div>
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
@@ -75,7 +126,17 @@ import NewNoteModal from './NewNoteModal.vue'
 import { useTechnicalStore } from '@/services/TechnicalStore.ts'
 import { stripMarkdown } from '@/services/utilsfuncs.ts'
 import { useSyncStore } from '@/services/SyncStore'
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
+// Добавляем метод форматирования времени
+const formatTime = (date: string | undefined) => {
+  if (!date) return ''
+  return new Date(date).toLocaleTimeString([], { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
 const { t, locale } = useI18n()
 const syncStore = useSyncStore()
 
@@ -98,56 +159,18 @@ const currentNotes = computed(() => rawNotes.value)
  const loadNotesForDay = async () => {
    if (!props.selectedDate) return;
    
-   // ✅ 1. Получаем все заметки (включая .deleted)
    const notes = await LocalDB.getNotesForDay(props.selectedDate);
-   
-   // ✅ 2. Фильтруем удаленные (просто скипаем)
    const activeNotes = notes.filter((note: any) => !note.deleted);
    
-   // ✅ 3. Обрабатываем только активные заметки
-   const processedNotes = await Promise.all(
-     activeNotes.map(async (note: any) => {
-       try {
-         if (!note.filenameLink) throw new Error('Missing filenameLink');
-         
-         const fileBlob = await LocalDB.getFile(note.filenameLink);
-         if (!fileBlob) throw new Error('File not found');
- 
-         const unpacked = await ZipPacker.unpack(fileBlob);
-         const markdown: string = unpacked.doc.markdown;
-         
-         const markdownLines: string[] = markdown
-           .split('\n')
-           .map((line: string) => line.trim())
-           .filter((line: string) => line.length > 0 && !line.startsWith('![') && !line.startsWith(']('));
-         
-         const firstLine: string = markdownLines[0] || '';
- 
-         const computedTitle: string = note.title && !note.title.startsWith('Note (') 
-           ? note.title 
-           : firstLine.replace(/^#+\s*/, '').trim() || 'No title';
-         
-         return {
-           ...note,
-           title: computedTitle,
-           previewText: markdown.trim() ? truncate(markdown, 120) : 'Empty note...'
-         };
-         
-       } catch (e) {
-         console.error(`Error processing note file:`, e);
-         return { 
-           ...note, 
-           title: note.title || 'Ошибка загрузки',
-           previewText: '❌ Ошибка чтения файла'
-         };
-       }
-     })
-   );
-   
-   rawNotes.value = processedNotes;
+   // ✅ Используем preview из базы
+   rawNotes.value = activeNotes.map((note: any) => ({
+     ...note,
+     previewText: note.preview || 'Пустая заметка...'
+   }));
  };
  
 const closeModal = () => {
+  rawNotes.value = [];
   emit('close');
 }
 
@@ -453,7 +476,6 @@ watch(() => props.selectedDate, () => {
   background: var(--card-bg, #1a1a2e);
   border-radius: 12px;
   overflow: hidden;
-  backdrop-filter: blur(10px);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   transition: transform 0.3s, box-shadow 0.3s;
 }

@@ -13,3 +13,9 @@ export const stripMarkdown = (str: string) => {
     .replace(/\s+/g, ' ')
     .trim()
 }
+
+export const truncate = (str: string, len: number): string => {
+  if (!str) return '';
+  const cleanStr = stripMarkdown(str);
+  return cleanStr.length > len ? cleanStr.slice(0, len) + '...' : cleanStr;
+};

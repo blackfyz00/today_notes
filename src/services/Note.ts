@@ -1,20 +1,31 @@
+// src/services/Note.ts
 export class Note {
-  id?: string;
+  id: string;
   title: string;
-  filenameLink: string; 
-  created_at?: string;
-  updated_at?: string;
+  filenameLink: string;
+  created_at: string;
+  updated_at: string;
   pending?: boolean;
   deleted?: boolean;
+  preview?: string;
 
-  // Обязательные поля для создания теперь: title и filename
-  constructor(init: Partial<Note> & { title: string; filenameLink: string }) {
-    this.id = init.id;
-    this.title = init.title;
-    this.filenameLink = init.filenameLink;
-    this.created_at = init.created_at || new Date().toISOString();
-    this.updated_at = init.updated_at || new Date().toISOString();
-    this.pending = init.pending ?? false;
-    this.deleted = init.deleted ?? false;
+  constructor(data: {
+    id: string;
+    title: string;
+    filenameLink: string;
+    created_at?: string;
+    updated_at?: string;
+    pending?: boolean;
+    deleted?: boolean;
+    preview?: string; 
+  }) {
+    this.id = data.id;
+    this.title = data.title;
+    this.filenameLink = data.filenameLink;
+    this.created_at = data.created_at || new Date().toISOString();
+    this.updated_at = data.updated_at || new Date().toISOString();
+    this.pending = data.pending || false;
+    this.deleted = data.deleted || false;
+    this.preview = data.preview || ''; 
   }
 }

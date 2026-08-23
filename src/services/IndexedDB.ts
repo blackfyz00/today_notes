@@ -220,12 +220,10 @@ class IndexedDB implements ICloudStorage {
   
     while (cursor) {
       const fullPath = cursor.key as string; 
-      
       rawFiles.push({
         fullPath,
         blob: cursor.value as Blob
       });
-      
       cursor = await cursor.continue();
     }
   
@@ -236,7 +234,6 @@ class IndexedDB implements ICloudStorage {
       const isDeleted = file.fullPath.includes('.deleted');
       const cleanPath = file.fullPath.replace(/\.deleted$/, '');
       
-      // ✅ Если файл удален — НЕ распаковываем!
       if (isDeleted) {
         const filename = file.fullPath.split("/").pop() || "unknown.idoc";
         notes.push(
@@ -245,14 +242,13 @@ class IndexedDB implements ICloudStorage {
             title: "Удаленная заметка",
             filenameLink: cleanPath,
             created_at: day.toISOString(),
-            deleted: true  // ✅ ВАЖНО!
+            deleted: true,
+            preview: '' // ✅ Добавить
           })
         );
-        console.log(`🗑️ Found deleted file (skipping unpack): ${file.fullPath}`);
         continue; 
       }
       
-      // ✅ Только для НЕ удаленных файлов
       try {
         const { note: unpackedNote } = await ZipPacker.unpack(file.blob);
   
@@ -263,7 +259,8 @@ class IndexedDB implements ICloudStorage {
             filenameLink: file.fullPath,
             created_at: unpackedNote.created_at || day.toISOString(),
             updated_at: unpackedNote.updated_at || day.toISOString(),
-            deleted: false
+            deleted: false,
+            preview: unpackedNote.preview || '' // ✅ ДОБАВИТЬ!
           })
         );
       } catch (unpackError) {
@@ -276,7 +273,8 @@ class IndexedDB implements ICloudStorage {
             title: "Заметка (Файл поврежден)",
             filenameLink: file.fullPath,
             created_at: day.toISOString(),
-            deleted: false
+            deleted: false,
+            preview: '' // ✅ Добавить
           })
         );
       }
@@ -284,7 +282,7 @@ class IndexedDB implements ICloudStorage {
   
     return notes;
   }
-
+    
   async getMonthStats(month: Date): Promise<IMonthStats[]> {
     const db = await this.initDB();
 

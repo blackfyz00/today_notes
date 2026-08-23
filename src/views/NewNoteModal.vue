@@ -17,7 +17,6 @@
                     class="note-title-input"
                     :placeholder="t('NewNote.title_placeholder')"
                     @input="isDirty = true"
-                    :disabled="isLoadingBtnClicked === 'loading'"
                 />
             </div>
         </header>
@@ -33,7 +32,6 @@
                 :toolbars="['bold', 'italic', 'strike', 'unorderedList', 'orderedList', 0, 'code', 'preview', 'previewOnly', 'fullscreen']"
                 :placeholder="t('NewNote.start_typing')"
                 class="note-md-editor"
-                :disabled="isLoadingBtnClicked === 'loading'"
             >
                 <!-- Объявляем перехваченную кнопку через слот -->
                 <template #defToolbars>
@@ -66,10 +64,8 @@
             />
         <div class="editor-actions">
             <button class="submit-btn save-btn" 
-                :disabled="isLoadingBtnClicked === 'loading'"
                 @click="saveNote">{{ t("NewNote.save") }}</button>
             <button v-if="isEditing" class="submit-btn delete-btn" 
-                :disabled="isLoadingBtnClicked === 'loading'"
                 @click="deleteNote">{{ t("NewNote.delete") }}</button>
         </div>
     </div>
@@ -87,12 +83,16 @@ import { App } from '@capacitor/app'
 import { ZipPacker } from '@/services/ZipPacker'
 import { LocalDB} from '@/services/IndexedDB' 
 import { useTechnicalStore } from '@/services/TechnicalStore'
-import { Note } from "@/services/Note";
-import { InteractiveDoc } from "@/services/InteractiveDoc";
 import { useSyncStore } from '@/services/SyncStore'
 
 const syncStore = useSyncStore()
 const technicalStore = useTechnicalStore()
+
+// NewNoteModal.vue
+const zipWorker = new Worker(
+  new URL('@/workers/zipWorker.ts', import.meta.url),
+  { type: 'module' }   // ← КРИТИЧЕСКИ ВАЖНО!
+)
 
 config({
   editorConfig: {
@@ -107,6 +107,8 @@ const { t } = useI18n()
 const editorTheme = ref('light')
 const isLoadingBtnClicked = computed(() => technicalStore.status)
 let backButtonListener = null
+
+const isSaving = ref(false)
 
 // Ref для скрытого файлового инпута
 const fileInput = ref(null)
@@ -203,6 +205,9 @@ onUnmounted(() => {
   mediaQuery.removeEventListener('change', checkSystemTheme)
   unregisterBackButton()
   cleanupBlobUrls()
+  if (zipWorker) {
+    zipWorker.terminate()
+  }
 })
 
 watch(() => props.show, (isOpen) => {
@@ -254,56 +259,113 @@ const onUploadFile = async (files, callback) => {
   }
 }
 
+// Глобальная переменная для хранения данных
+let pendingSaveData = null
+zipWorker.onmessage = async (e) => {
+  const { type, data, error } = e.data
+  
+  if (type === 'done') {
+    try {
+      const { zipBlob, noteData, initialFilename } = data
+      
+      // Сохраняем в IndexedDB
+      const realPartitionedPath = await LocalDB.saveFile(initialFilename, zipBlob)
+      noteData.filenameLink = realPartitionedPath
+      
+      syncStore.addToQueue(noteData)
+      emit('saved', noteData)
+      closeModal()
+      
+      technicalStore.status = 'success'
+    } catch (err) {
+      console.error('Ошибка сохранения после Worker:', err)
+      technicalStore.status = 'error'
+      alert(t('NewNote.save_error'))
+    } finally {
+      isSaving.value = false
+    }
+  }
+  
+  if (type === 'error') {
+    isSaving.value = false
+    technicalStore.status = 'error'
+    console.error('Worker error:', error)
+    alert(t('NewNote.save_error'))
+  }
+}
+
+zipWorker.onerror = (error) => {
+  isSaving.value = false
+  technicalStore.status = 'error'
+  console.error('Worker onerror:', error)
+}
+
+
+// ✅ Функция сохранения с передачей в Worker
 const saveNote = async () => {
+  if (isSaving.value) return
+  
   try {
-    let markdownToPack = localContent.value || ""
-    const cleanAssetsMap = new Map()
+    isSaving.value = true
+    technicalStore.status = 'loading'
+    
+    // 1. Подготовка данных для Worker
+    const mediaFilesArray = []
+    const transferables = []
+    
     for (const [name, entry] of localMediaFiles.value.entries()) {
-      const rawEntry = toRaw(entry)
-      if (rawEntry && rawEntry.file) cleanAssetsMap.set(name, toRaw(rawEntry.file))
-      else if (rawEntry instanceof Blob) cleanAssetsMap.set(name, rawEntry)
-      if (rawEntry && rawEntry.url) markdownToPack = markdownToPack.replaceAll(rawEntry.url, `assets/${name}`)
+      // entry = { url, file }
+      const fileBlob = entry.file
+      if (fileBlob instanceof Blob) {
+        mediaFilesArray.push({
+          name,
+          file: fileBlob,
+          url: entry.url
+        })
+        transferables.push(fileBlob)  // для передачи без копирования
+      } else {
+        // на случай, если file уже отсутствует (например, после предыдущей отправки)
+        console.warn('Файл не является Blob:', name, fileBlob)
+      }
     }
     
-    const docToPack = new InteractiveDoc({ markdown: markdownToPack, assets: cleanAssetsMap })
+    // 2. Безопасно преобразуем дату в строку ISO
+    let dateToSend = props.selectedDate
+    if (dateToSend instanceof Date) {
+      dateToSend = dateToSend.toISOString()
+    } else if (typeof dateToSend === 'string') {
+      // оставляем как есть
+    } else {
+      dateToSend = new Date().toISOString()
+    }
     
-    const noteId = props.note?.id || crypto.randomUUID()
-    const year = props.selectedDate.getFullYear();
-    const month = String(props.selectedDate.getMonth() + 1).padStart(2, "0");
-    const day = String(props.selectedDate.getDate()).padStart(2, "0");
-    const dateKey = `${year}-${month}-${day}`;
-    const initialFilename = `${dateKey}-${noteId}.idoc`
-
-    const tempNote = new Note({
-      id: noteId,
-      title: localTitle.value,
-      filenameLink: initialFilename,
-      created_at: props.note?.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-
-    const zipBlob = await ZipPacker.pack(tempNote, docToPack)
+    // 3. Отправляем в Worker
+    zipWorker.postMessage(
+      {
+        type: 'save',
+        data: {
+          title: localTitle.value,
+          content: localContent.value,
+          mediaFiles: mediaFilesArray,
+          selectedDate: dateToSend,
+          noteId: props.note?.id,
+          createdAt: props.note?.created_at
+        }
+      },
+      transferables  // передаём Blob'ы
+    )
     
-    const realPartitionedPath = await LocalDB.saveFile(initialFilename, zipBlob)
+    // 4. Сразу очищаем локальные URL и Map (Blob'ы уже перемещены)
+    cleanupBlobUrls()
     
-    const noteData = new Note({
-      id: noteId,
-      title: localTitle.value,
-      filenameLink: realPartitionedPath,
-      created_at: tempNote.created_at,
-      updated_at: tempNote.updated_at
-    })
-
-    syncStore.addToQueue(noteData)
-    emit('saved', noteData)
-    closeModal() 
+    // Модалку закрываем после успешного ответа от Worker (см. onmessage)
+    // Не закрываем здесь, чтобы пользователь видел, что сохранение идёт.
     
   } catch (error) {
-    technicalStore.status = 'error';
-    console.error("Критический сбой функции saveNote:", error); 
+    console.error('❌ Ошибка в saveNote:', error)
+    technicalStore.status = 'error'
     alert(t('NewNote.save_error'))
-  } finally {
-    technicalStore.status = 'success';
+    isSaving.value = false
   }
 }
 

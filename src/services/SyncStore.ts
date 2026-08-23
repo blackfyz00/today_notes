@@ -36,31 +36,16 @@ export const useSyncStore = defineStore('syncStore', () => {
   /**
    * Добавить заметку в очередь синхронизации
    */
-    function addToQueue(note: Note) {
-    const index = queue.value.findIndex(item => item.id === note.id)
-    if (index !== -1) {
-      queue.value[index] = note
-    } else {
-      queue.value.push(note)
+   function addToQueue(note: Note) {
+     const index = queue.value.findIndex(item => item.id === note.id)
+     if (index !== -1) {
+       queue.value[index] = note
+     } else {
+       queue.value.push(note)
+     }
     }
-    
-    if (isOnline.value) {
-      if (syncTimeout) {
-        clearTimeout(syncTimeout);
-        syncTimeout = null;
-      }
-      
-      const isMobile = technicalStore.isMobile;
-      const delay = isMobile ? 3000 : 0;
-      
-      syncTimeout = setTimeout(() => {
-        processQueue();
-        syncTimeout = null;
-      }, delay);
-    }
-  }
 
-  /**
+   /**
    * Удалить синхронизированные заметки из очереди
    */
   function removeSyncedNotes(syncedNotes: Note[]) {
@@ -335,41 +320,45 @@ function stopSyncLogout() {
   /**
    * Полная синхронизация
    */
-  async function fullSync(): Promise<void> {
-    if (!isOnline.value) {
-      console.log('📡 Offline mode - full sync postponed')
-      return
-    }
-    
-    await SyncManager.fullSync(LocalDB, cloudDB)
-    lastSyncTime.value = new Date()
-  }
+   async function fullSync(): Promise<void> {
+     if (!isOnline.value) {
+       console.log('📡 Offline mode - full sync postponed');
+       return;
+     }
+     
+     await SyncManager.fullSync(LocalDB, cloudDB, removeSyncedNotes);
+     clearQueue(); 
+     lastSyncTime.value = new Date();
+   }
 
   /**
    * Запустить периодическую синхронизацию
    */
-  function startPeriodicSync(intervalMs: number = 60000) {
-    isStopping = false
-  if (syncTimer) return
-  
-    if (isAuthError.value || technicalStore.status === 'error') {
-    console.log('⛔ Sync blocked due to auth error')
-    return
+   function startPeriodicSync(intervalMs: number = 60000) {
+     isStopping = false
+     if (syncTimer) return
+   
+     if (isAuthError.value || technicalStore.status === 'error') {
+       console.log('⛔ Sync blocked due to auth error')
+       return
+     }
+   
+     // ✅ УБИРАЕМ СРАЗУ ВЫЗОВ processQueue()
+     // processQueue()  // ← КОММЕНТИРУЕМ ИЛИ УДАЛЯЕМ
+   
+     // ✅ ТОЛЬКО ЗАПУСКАЕМ ИНТЕРВАЛ
+     syncTimer = setInterval(() => {
+       if (technicalStore.status === 'error') {
+         console.log('⛔ Periodic sync blocked due to auth error')
+         return
+       }
+       processQueue()
+     }, intervalMs)
+   
+     console.log(`🔄 Periodic sync started (interval: ${intervalMs}ms)`)
     }
   
-  processQueue()
-  syncTimer = setInterval(() => {
-    // ✅ Проверяем перед каждой синхронизацией
-    if (technicalStore.status === 'error') {
-      console.log('⛔ Periodic sync blocked due to auth error')
-      return
-    }
-    processQueue()
-  }, intervalMs)
-  
-  console.log(`🔄 Periodic sync started (interval: ${intervalMs}ms)`)
-}
-  /**
+   /**
    * Остановить периодическую синхронизацию
    */
   function stopPeriodicSync() {

@@ -4,6 +4,10 @@
     class="sidebar-overlay" 
     @click="closeMenu"
   ></div>
+
+  <SyncBtn 
+  :full-sync="true"
+  />
   
   <button 
     v-if="isMobile && !isMobileOpen" 
@@ -52,10 +56,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-const router = useRouter();
 const { t } = useI18n();
+import SyncBtn from './syncBtn.vue';
 
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
 const isMobile = computed(() => windowWidth.value <= 768);

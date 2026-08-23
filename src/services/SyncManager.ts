@@ -218,40 +218,47 @@ export class SyncManager {
   /**
    * Полная синхронизация всех заметок
    */
-  static async fullSync(
-    localDB: ICloudStorage,
-    cloudDB: ICloudStorage,
-    removeSyncedNotes?: (syncedNotes: Note[]) => void
-  ): Promise<void> {
-    console.log('🔄 Starting full sync...');
-    
-    try {
-      const now = new Date();
-      const months = new Set<string>();
-      
-      // Синхронизируем последние 2 месяца
-      for (let i = 0; i < 2; i++) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const prefix = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}`;
-        months.add(prefix);
-      }
-      
-      // Синхронизируем каждый месяц
-      for (const month of months) {
-        if (removeSyncedNotes) {
-          // Если есть функция удаления - передаем пустую очередь
-          await this.syncMonth(month, [], removeSyncedNotes, localDB, cloudDB);
-        } else {
-          // Если нет функции - синхронизируем без очистки
-          await this.syncMonth(month, [], () => {}, localDB, cloudDB);
-        }
-      }
-      
-      console.log('✅ Full sync completed');
-      
-    } catch (error) {
-      console.error('❌ Full sync failed:', error);
-      throw error;
-    }
-  }
+   static async fullSync(
+     localDB: ICloudStorage,
+     cloudDB: ICloudStorage,
+     removeSyncedNotes?: (syncedNotes: Note[]) => void
+   ): Promise<void> {
+     console.log('🔄 Starting full sync...');
+     
+     try {
+       const now = new Date();
+       const months = new Set<string>();
+       const allSyncedNotes: Note[] = [];
+       
+       // Синхронизируем последние 2 месяца
+       for (let i = 0; i < 2; i++) {
+         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+         const prefix = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+         months.add(prefix);
+       }
+       
+       for (const month of months) {
+         // ✅ Собираем все синхронизированные заметки
+         await this.syncMonth(
+           month, 
+           [], 
+           (notes: Note[]) => { allSyncedNotes.push(...notes); }, 
+           localDB, 
+           cloudDB
+         );
+       }
+       
+       // ✅ ОДИН РАЗ очищаем очередь
+       if (removeSyncedNotes && allSyncedNotes.length > 0) {
+         removeSyncedNotes(allSyncedNotes);
+         console.log(`🧹 Full sync: cleared ${allSyncedNotes.length} notes`);
+       }
+       
+       console.log('✅ Full sync completed');
+       
+     } catch (error) {
+       console.error('❌ Full sync failed:', error);
+       throw error;
+     }
+   }
 }
