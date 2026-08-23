@@ -74,8 +74,10 @@ import { modalService } from '@/services/ModalService'
 import NewNoteModal from './NewNoteModal.vue'
 import { useTechnicalStore } from '@/services/TechnicalStore.ts'
 import { stripMarkdown } from '@/services/utilsfuncs.ts'
+import { useSyncStore } from '@/services/SyncStore'
 
 const { t, locale } = useI18n()
+const syncStore = useSyncStore()
 
 const props = defineProps<{
   show: boolean;
@@ -175,22 +177,26 @@ const editNote = (note: any) => {
 /**
  * Исправленное физическое удаление файла .idoc по полному иерархическому пути
  */
-const handleDeleteNote = async (noteToDestroy: any) => {
-  if (!noteToDestroy?.filenameLink) return;
-
-  try {
-    // ✅ filenameLink уже полный путь, не нужно передавать date
-    await LocalDB.deleteFile(noteToDestroy.filenameLink);
-
-    rawNotes.value = rawNotes.value.filter(n => n.id !== noteToDestroy.id);
-    await loadNotesForDay();
-
-  } catch (error) {
-    console.error('Error deleting note:', error);
-    alert('Failed to move note to trash');
-  }
-};
-
+ const handleDeleteNote = async (noteToDestroy: any) => {
+   if (!noteToDestroy?.filenameLink) return;
+ 
+   try {
+     rawNotes.value = rawNotes.value.filter(n => n.id !== noteToDestroy.id);
+     
+     syncStore.deleteNote(noteToDestroy.filenameLink)
+       .then(() => {
+         console.log('✅ Note deleted from cloud');
+         loadNotesForDay();
+       })
+       .catch((error) => {
+         console.error('Error deleting note:', error);
+       });
+     
+   } catch (error) {
+     console.error('Error deleting note:', error);
+     alert('Failed to move note to trash');
+   }
+ };
 
 // --- Форматирование UI ---
 const formattedDate = computed(() => {
@@ -499,7 +505,7 @@ watch(() => props.selectedDate, () => {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0.75rem 1.25rem;
-  color: var(--text-primary, #ffffff);
+  color: #ffffff;
   word-break: break-word;
 }
 

@@ -1,3 +1,4 @@
+<!-- @/views/NewNoteModal-->
 <template>
 <div v-if="show" class="note-modal-overlay" :class="{ 'dark-theme': editorTheme === 'dark' }" @click="closeModal">
     <div class="note-editor" @click.stop>
@@ -311,12 +312,8 @@ const deleteNote = async () => {
   if (!confirm(t('NewNote.delete_confirm'))) return
   
   try {
-    const dateKey = props.selectedDate ? 
-      new Date(props.selectedDate).toISOString().split('T')[0] : 
-      new Date().toISOString().split('T')[0]
-    
-    const filename = `${dateKey}-${props.note.id}.idoc`
-    await LocalDB.deleteFile(filename)
+    // ✅ Используем filenameLink из props.note
+    await syncStore.deleteNote(props.note.filenameLink);
     
     closeModal()
     emit('deleted', props.note.id)

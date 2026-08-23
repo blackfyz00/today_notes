@@ -522,7 +522,6 @@ private async request(url: string, options: RequestInit = {}, retry = 0): Promis
 async deleteFile(filename: string): Promise<void> {
   console.log(`🔴🔴🔴 deleteFile CALLED with: ${filename}`); 
   
-  // ✅ Проверка на .deleted
   if (filename.includes('.deleted')) {
     console.log(`⏭️ Already deleted: ${filename}`);
     return;
@@ -533,8 +532,6 @@ async deleteFile(filename: string): Promise<void> {
     console.error(`❌ Invalid filename: ${filename}`);
     return;
   }
-
-  console.log(`📁 Parsed:`, parsed); // ← ДОБАВИТЬ
 
   const folderId = await this.findFolderByPath(parsed.targetDate);
   if (!folderId) {
@@ -548,16 +545,22 @@ async deleteFile(filename: string): Promise<void> {
     return;
   }
 
-  console.log(`🗑️ Renaming file: ${parsed.cleanName} → ${parsed.cleanName}.deleted`); // ← ДОБАВИТЬ
+  // ✅ Устанавливаем время удаления (то же, что будет в локальном updated_at)
+  const now = new Date().toISOString();
 
-  // ✅ Переименовываем в .deleted
+  // ✅ Обновляем имя, modifiedTime и properties
   const response = await this.request(
     `${this.API_BASE}/files/${fileId}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        name: `${parsed.cleanName}.deleted` 
+      body: JSON.stringify({
+        name: `${parsed.cleanName}.deleted`,
+        modifiedTime: now,  
+        properties: {
+          deleted: "true",
+          updated_at: now  
+        }
       })
     }
   );
@@ -568,7 +571,7 @@ async deleteFile(filename: string): Promise<void> {
     throw new Error(`Failed to rename file: ${errorText}`);
   }
 
-  console.log(`✅ File renamed to: ${parsed.cleanName}.deleted`);
+  console.log(`✅ File renamed to: ${parsed.cleanName}.deleted (modifiedTime: ${now})`);
 }
     
 async getNotesForDay(day: Date): Promise<Note[]> {

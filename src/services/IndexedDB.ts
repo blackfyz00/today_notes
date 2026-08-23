@@ -152,32 +152,55 @@ class IndexedDB implements ICloudStorage {
       console.debug(`File already in trash: ${filename}`);
       return;
     }
-
+  
     const db = await this.initDB();
-    
     const parsed = this.parseFilename(filename);
     if (!parsed) {
       console.error(`Invalid filename format: ${filename}`);
       return;
     }
-
+  
     const { targetDate, cleanName } = parsed;
     const oldPath = this.buildPartitionPath(targetDate, cleanName);
     const newPath = `${oldPath}.deleted`;
-
+  
     try {
-      const content = await db.get("files", oldPath);
-      if (content) {
-        await db.put("files", content, newPath);
-        await db.delete("files", oldPath);
-        console.debug(`Moved file to trash in IndexedDB: ${oldPath} -> ${newPath}`);
+      // 1. Получаем текущий blob
+      const blob = await db.get("files", oldPath);
+      if (!blob) {
+        console.warn(`File not found: ${oldPath}`);
+        return;
       }
+  
+      // 2. Распаковываем, чтобы получить Note
+      const { ZipPacker } = await import("@/services/ZipPacker");
+      const { note } = await ZipPacker.unpack(blob);
+  
+      // 3. Обновляем метаданные (без задержки!)
+      note.deleted = true;
+      note.updated_at = new Date().toISOString(); // реальное время
+  
+      // 4. Создаём пустой InteractiveDoc (assets не нужны)
+      const { InteractiveDoc } = await import("@/services/InteractiveDoc");
+      const emptyDoc = new InteractiveDoc();
+      emptyDoc.markdown = "";
+      emptyDoc.assets = new Map();
+  
+      // 5. Упаковываем обратно
+      const newBlob = await ZipPacker.pack(note, emptyDoc);
+  
+      // 6. Сохраняем с новым именем
+      await db.put("files", newBlob, newPath);
+  
+      // 7. Удаляем старый файл
+      await db.delete("files", oldPath);
+  
+      console.debug(`Moved file to trash with updated metadata: ${oldPath} -> ${newPath}`);
     } catch (error) {
       console.error(`Error soft-deleting file ${oldPath}:`, error);
       throw error;
     }
   }
-
   // src/services/IndexedDB.ts
   
   async getNotesForDay(day: Date): Promise<Note[]> {

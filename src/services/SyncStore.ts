@@ -80,25 +80,31 @@ export const useSyncStore = defineStore('syncStore', () => {
      }
    }
 
-  async function processDeletions() {
+   async function processDeletions() {
      if (deleteQueue.value.length === 0) return
-     
-     console.log(`🗑️ Обработка ${deleteQueue.value.length} удалений...`)
      
      const toRemove: string[] = []
      
      for (const filename of deleteQueue.value) {
        try {
-         await cloudDB.deleteFile(filename)
-         console.log(`✅ Удалено из облака: ${filename}`)
-         toRemove.push(filename)
+         // ✅ Не ждём ответа от облака
+         cloudDB.deleteFile(filename).catch(err => {
+           console.error(`❌ Ошибка удаления ${filename}:`, err);
+           syncErrors.value.push(`Failed to delete ${filename}: ${err}`);
+         });
+         
+         // ✅ Сразу считаем удалённым
+         toRemove.push(filename);
+         console.log(`✅ Удаление отправлено в облако: ${filename}`);
+         
        } catch (error) {
-         console.error(`❌ Ошибка удаления ${filename}:`, error)
-         syncErrors.value.push(`Failed to delete ${filename}: ${error}`)
+         console.error(`❌ Ошибка удаления ${filename}:`, error);
+         syncErrors.value.push(`Failed to delete ${filename}: ${error}`);
        }
      }
      
-     deleteQueue.value = deleteQueue.value.filter(f => !toRemove.includes(f))
+     // Удаляем из очереди (даже если облако ещё не ответило)
+     deleteQueue.value = deleteQueue.value.filter(f => !toRemove.includes(f));
    }
     
   /**
