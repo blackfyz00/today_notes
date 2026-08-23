@@ -6,7 +6,7 @@
   ></div>
 
   <SyncBtn 
-  :full-sync="true"
+  :month="currentMonth"
   />
   
   <button 
@@ -59,7 +59,15 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import SyncBtn from './syncBtn.vue';
+import { useCalendarDates } from '@/composables/useCalendar';
+const { currentDate } = useCalendarDates();
 
+// Форматируем текущий месяц в формат "ГГГГ/ММ"
+const currentMonth = computed(() => {
+  const year = currentDate.value.getFullYear();
+  const month = String(currentDate.value.getMonth() + 1).padStart(2, '0');
+  return `${year}/${month}`;
+});
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
 const isMobile = computed(() => windowWidth.value <= 768);
 

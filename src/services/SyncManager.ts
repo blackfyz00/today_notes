@@ -228,17 +228,36 @@ export class SyncManager {
      try {
        const now = new Date();
        const months = new Set<string>();
-       const allSyncedNotes: Note[] = [];
        
-       // Синхронизируем последние 2 месяца
+       // ✅ 1. Добавляем последние 2 месяца
        for (let i = 0; i < 2; i++) {
          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
          const prefix = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}`;
          months.add(prefix);
        }
        
+       // ✅ 2. Добавляем текущий месяц (если ещё не добавлен)
+       const currentMonth = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+       months.add(currentMonth);
+       
+       // ✅ 3. Добавляем следующий месяц (на всякий случай)
+       const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+       const nextMonthPrefix = `${nextMonth.getFullYear()}/${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+       months.add(nextMonthPrefix);
+       
+       // Или более универсально:
+       // Добавляем все месяцы с прошлого месяца до следующего
+       for (let i = -1; i <= 1; i++) {
+         const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+         const prefix = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+         months.add(prefix);
+       }
+       
+       console.log(`📅 Months to sync: ${Array.from(months).join(', ')}`);
+       
+       const allSyncedNotes: Note[] = [];
+       
        for (const month of months) {
-         // ✅ Собираем все синхронизированные заметки
          await this.syncMonth(
            month, 
            [], 
@@ -248,7 +267,6 @@ export class SyncManager {
          );
        }
        
-       // ✅ ОДИН РАЗ очищаем очередь
        if (removeSyncedNotes && allSyncedNotes.length > 0) {
          removeSyncedNotes(allSyncedNotes);
          console.log(`🧹 Full sync: cleared ${allSyncedNotes.length} notes`);

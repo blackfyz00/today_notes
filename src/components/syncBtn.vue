@@ -66,6 +66,7 @@ const technicalStore = useTechnicalStore();
 const props = defineProps<{
   fullSync?: boolean;
   syncingText?: string;
+  month: string;  
   readyText?: string;
 }>();
 
@@ -100,21 +101,21 @@ const handleClick = async () => {
   try {
     emit('sync-start');
     
-    if (props.fullSync) {
-      await syncStore.fullSync();
-    } else {
-      await syncStore.processQueue();
-    }
+    // ✅ Сначала синхронизируем очередь
+    await syncStore.processQueue();
+    
+    // ✅ Потом синхронизируем месяц
+    await syncStore.syncMonth(props.month);
     
     emit('sync-end');
-    console.log('✅ Синхронизация завершена');
+    console.log(`✅ Синхронизация ${props.month} завершена`);
     
   } catch (error) {
     console.error('❌ Ошибка синхронизации:', error);
     emit('error', error as Error);
     alert('Ошибка синхронизации. Проверьте подключение.');
   }
-};
+};;
 </script>
 
 <style scoped>

@@ -43,7 +43,6 @@
 import { useI18n } from 'vue-i18n'
 import { watch } from 'vue'
 import { useCalendarDates as useCalendar } from '@/composables/useCalendar'
-import SyncBtn from '@/components/syncBtn.vue'
 
 const { t } = useI18n()
 const {

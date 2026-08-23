@@ -331,6 +331,27 @@ function stopSyncLogout() {
      lastSyncTime.value = new Date();
    }
 
+   // В SyncStore.ts добавить метод:
+   async function syncMonth(month: string): Promise<void> {
+     if (!isOnline.value) {
+       console.log('📡 Offline mode - sync postponed');
+       return;
+     }
+     
+     console.log(`🔄 Syncing month: ${month}`);
+     
+     await SyncManager.syncMonth(
+       month,
+       queue.value,
+       removeSyncedNotes,
+       LocalDB,
+       cloudDB
+     );
+     
+     lastSyncTime.value = new Date();
+     console.log(`✅ Month ${month} synced`);
+   }
+
   /**
    * Запустить периодическую синхронизацию
    */
@@ -415,6 +436,7 @@ function stopSyncLogout() {
     saveNote,
     deleteNote,
     fullSync,
+    syncMonth,
     startPeriodicSync,
     stopPeriodicSync,
     clearErrors,

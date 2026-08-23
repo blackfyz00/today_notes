@@ -9,20 +9,29 @@ import NewNoteModal from '@/views/NewNoteModal.vue'
 import { useI18n } from 'vue-i18n'
 import NotesModalView from '@/views/NotesModalView.vue'
 
+// ============================================
+// ✅ СОЗДАЁМ СИНГЛТОН — ЕДИНСТВЕННЫЙ ЭКЗЕМПЛЯР
+// ============================================
+
+// 1. Создаём общие refs вне функции
+const sharedDate = ref(new Date())
+const sharedMonthStats = ref<IMonthStats[]>([])
+
+// 2. Вспомогательные функции
+const formatDateKey = (date: Date) => {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+}
+
 export function useCalendarDates() {
     const technicalStore = useTechnicalStore()
-    const currentDate = ref(new Date())
-    const currentMonthStats = ref<IMonthStats[]>([])
     const { t } = useI18n()
     
-    // Форматируем дату в строку "YYYY-MM-DD"
-    const formatDateKey = (date: Date) => {
-        const y = date.getFullYear()
-        const m = String(date.getMonth() + 1).padStart(2, '0')
-        const d = String(date.getDate()).padStart(2, '0')
-        return `${y}-${m}-${d}`
-    }
-
+    // ✅ Используем общие refs
+    const currentDate = sharedDate
+    const currentMonthStats = sharedMonthStats
     
     let touchStartX = 0
     let touchEndX = 0
@@ -61,7 +70,6 @@ export function useCalendarDates() {
     const onMonthSelect = (newDate: Date) => {
         currentDate.value = newDate
     }
-
 
     // Генерируем 42 дня для сетки календаря
     const days = computed(() => {
@@ -111,7 +119,7 @@ export function useCalendarDates() {
         const modalId = modalService.open(MonthPickerModal, {
             currentDate: currentDate.value,
             onSelect: (selectedDate: Date) => {
-                currentDate.value = selectedDate // ✅ Если currentDate - ref
+                currentDate.value = selectedDate
             },
             onClose: () => {
                 modalService.close(modalId)
@@ -156,10 +164,10 @@ export function useCalendarDates() {
         }
     }
 
-    // Функция открытия редактора - передаем fullDate как параметр
+    // Функция открытия редактора
     const openNoteEditor = (notesModalId: string, fullDate: Date) => {
         const editorModalId = modalService.open(NewNoteModal, {
-            selectedDate: fullDate, // ✅ теперь fullDate передан как параметр
+            selectedDate: fullDate,
             isEditing: false,
             note: null,
             onSaved: async (newNoteData: any) => {
@@ -175,7 +183,7 @@ export function useCalendarDates() {
                         modalService.close(newModalId)
                         await loadStatsAndSync()
                     },
-                    onCreateNew: () => openNoteEditor(newModalId, fullDate) // ✅ передаем fullDate
+                    onCreateNew: () => openNoteEditor(newModalId, fullDate)
                 })
             },
             onClose: () => {
@@ -193,46 +201,45 @@ export function useCalendarDates() {
                 modalService.close(notesModalId)
                 await loadStatsAndSync()
             },
-            onCreateNew: () => openNoteEditor(notesModalId, fullDate) // ✅ передаем fullDate
+            onCreateNew: () => openNoteEditor(notesModalId, fullDate)
         })
     
         if (!notesCount) {
-            setTimeout(() => openNoteEditor(notesModalId, fullDate), 100) // ✅ передаем fullDate
+            setTimeout(() => openNoteEditor(notesModalId, fullDate), 100)
         }
     }
 
-
     return {
-      // === Состояние ===
-      currentDate,
-      currentMonthStats,
-      
-      // === Навигация ===
-      days,
-      prevMonth,
-      nextMonth,
-      onToday,
-      onMonthSelect,
-      openMonthPicker,
-      
-      // === Свайп ===
-      onTouchStart,
-      onTouchEnd,
-      
-      // === Локализация ===
-      thisMonth,
-      nameDays,
-      
-      // === Статистика ===
-      monthStatsMap,
-      getNotesCountForDay,
-      loadStatsAndSync,
-      
-      // === Действия с заметками ===
-      handleDayClick,
-      openNoteEditor,
-      
-      // === Утилиты ===
-      formatDateKey
+        // === Состояние ===
+        currentDate,
+        currentMonthStats,
+        
+        // === Навигация ===
+        days,
+        prevMonth,
+        nextMonth,
+        onToday,
+        onMonthSelect,
+        openMonthPicker,
+        
+        // === Свайп ===
+        onTouchStart,
+        onTouchEnd,
+        
+        // === Локализация ===
+        thisMonth,
+        nameDays,
+        
+        // === Статистика ===
+        monthStatsMap,
+        getNotesCountForDay,
+        loadStatsAndSync,
+        
+        // === Действия с заметками ===
+        handleDayClick,
+        openNoteEditor,
+        
+        // === Утилиты ===
+        formatDateKey
     }
 }
