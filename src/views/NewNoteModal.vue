@@ -91,7 +91,7 @@ const technicalStore = useTechnicalStore()
 // NewNoteModal.vue
 const zipWorker = new Worker(
   new URL('@/workers/zipWorker.ts', import.meta.url),
-  { type: 'module' }   // ← КРИТИЧЕСКИ ВАЖНО!
+  { type: 'module' }
 )
 
 config({
@@ -113,6 +113,10 @@ const isSaving = ref(false)
 // Ref для скрытого файлового инпута
 const fileInput = ref(null)
 
+// Константы для ограничения памяти
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB на файл
+const MAX_TOTAL_SIZE = 50 * 1024 * 1024 // 50MB всего
+
 const props = defineProps({
   show: { type: Boolean, default: false },
   note: { type: Object, default: null },
@@ -123,6 +127,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved', 'deleted'])
 
 const closeModal = () => {
+  // Очищаем перед закрытием
+  cleanupBlobUrls()
   emit('close')
 }
 
@@ -130,6 +136,11 @@ const localTitle = ref('')
 const localContent = ref('')
 const isDirty = ref(false)
 const localMediaFiles = ref(new Map())
+
+// Трекер общего размера медиафайлов
+const totalMediaSize = ref(0)
+// Таймер для отложенной очистки
+let cleanupTimeout = null
 
 const registerBackButton = () => {
   if (!Capacitor.isNativePlatform()) return
@@ -148,18 +159,101 @@ const unregisterBackButton = () => {
   }
 }
 
+// Улучшенная очистка Blob URL с принудительным освобождением памяти
 const cleanupBlobUrls = () => {
-  localMediaFiles.value.forEach(({ url }) => {
+  // Отменяем запланированную очистку
+  if (cleanupTimeout) {
+    clearTimeout(cleanupTimeout)
+    cleanupTimeout = null
+  }
+  
+  const entries = Array.from(localMediaFiles.value.entries())
+  
+  entries.forEach(([name, entry]) => {
     try {
-      URL.revokeObjectURL(url)
+      // Освобождаем URL
+      if (entry.url) {
+        URL.revokeObjectURL(entry.url)
+      }
+      
+      // Помечаем файл для GC
+      if (entry.file && entry.file.size > 0) {
+        // Создаем копию в виде пустого Blob для замены
+        // Это помогает освободить ссылки на большие данные
+        entry.file = null
+      }
     } catch (e) {
       console.warn('Error revoking URL:', e)
     }
   })
+  
   localMediaFiles.value.clear()
+  totalMediaSize.value = 0
+  
+  // Запускаем сборку мусора с задержкой
+  cleanupTimeout = setTimeout(() => {
+    if (window.gc) {
+      try {
+        window.gc()
+      } catch (e) {
+        // GC может быть недоступен
+      }
+    }
+    cleanupTimeout = null
+  }, 100)
 }
 
-// Триггер для открытия диалога выбора файлов
+// Обработчик загрузки файлов с проверкой размера
+const handleCustomUpload = async (event) => {
+  const files = event.target.files
+  if (!files || !files.length) return
+  
+  // Проверяем размеры файлов
+  let newTotalSize = totalMediaSize.value
+  const validFiles = []
+  
+  for (const file of files) {
+    // Проверка каждого файла
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`Файл ${file.name} слишком большой. Максимальный размер: ${MAX_FILE_SIZE/1024/1024}MB`)
+      continue
+    }
+    
+    // Проверка общего размера
+    if (newTotalSize + file.size > MAX_TOTAL_SIZE) {
+      alert(`Превышен общий лимит медиафайлов (${MAX_TOTAL_SIZE/1024/1024}MB)`)
+      break
+    }
+    
+    validFiles.push(file)
+    newTotalSize += file.size
+  }
+  
+  if (!validFiles.length) {
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+    return
+  }
+  
+  // Используем существующую функцию onUploadFile
+  await onUploadFile(validFiles, (imageUrls) => {
+    if (imageUrls && imageUrls.length) {
+      // Вставляем изображения в редактор
+      const markdownImages = imageUrls.map(url => `![image](${url})`).join('\n\n')
+      localContent.value += markdownImages
+    }
+  })
+  
+  // Обновляем общий размер
+  totalMediaSize.value = newTotalSize
+  
+  // Сбрасываем инпут для возможности повторной загрузки
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
 const triggerFileUpload = () => {
   if (fileInput.value) {
     fileInput.value.click()
@@ -173,26 +267,6 @@ const handleCustomImageClick = () => {
     }
 }
 
-// Обработчик загрузки файлов через кастомный инпут
-const handleCustomUpload = async (event) => {
-  const files = event.target.files
-  if (!files || !files.length) return
-  
-  // Используем существующую функцию onUploadFile
-  await onUploadFile(files, (imageUrls) => {
-    if (imageUrls && imageUrls.length) {
-      // Вставляем изображения в редактор
-      const markdownImages = imageUrls.map(url => `![image](${url})`).join('\n\n')
-      localContent.value += markdownImages
-    }
-  })
-  
-  // Сбрасываем инпут для возможности повторной загрузки
-  if (fileInput.value) {
-    fileInput.value.value = ''
-  }
-}
-
 onMounted(() => {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   checkSystemTheme()
@@ -204,8 +278,18 @@ onUnmounted(() => {
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   mediaQuery.removeEventListener('change', checkSystemTheme)
   unregisterBackButton()
+  
+  // Очищаем все ресурсы
   cleanupBlobUrls()
+  
+  if (cleanupTimeout) {
+    clearTimeout(cleanupTimeout)
+    cleanupTimeout = null
+  }
+  
   if (zipWorker) {
+    // Отключаем все обработчики перед завершением
+    zipWorker.removeEventListener('message', zipWorkerOnMessage)
     zipWorker.terminate()
   }
 })
@@ -216,10 +300,13 @@ watch(() => props.show, (isOpen) => {
       unregisterBackButton()
       registerBackButton()
     }
+  } else {
+    // При закрытии очищаем ресурсы
+    cleanupBlobUrls()
   }
 })
 
-// Единая функция обработки файлов (изображения и аудио)
+// Единая функция обработки файлов с оптимизацией памяти
 const onUploadFile = async (files, callback) => {
   const images = []
   const audio = []
@@ -238,7 +325,9 @@ const onUploadFile = async (files, callback) => {
   if (images.length) {
     const imageResults = images.map(file => {
       const filename = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`
+      // Создаем URL
       const url = URL.createObjectURL(file)
+      // Сохраняем ссылку на файл для возможного использования
       localMediaFiles.value.set(filename, { url, file })
       return url
     })
@@ -261,12 +350,14 @@ const onUploadFile = async (files, callback) => {
 
 // Глобальная переменная для хранения данных
 let pendingSaveData = null
-zipWorker.onmessage = async (e) => {
+
+// Обработчик сообщений от Worker с очисткой памяти
+const zipWorkerOnMessage = async (e) => {
   const { type, data, error } = e.data
   
   if (type === 'done') {
     try {
-      const { zipBlob, noteData, initialFilename } = data
+      let { zipBlob, noteData, initialFilename } = data
       
       // Сохраняем в IndexedDB
       const realPartitionedPath = await LocalDB.saveFile(initialFilename, zipBlob)
@@ -274,15 +365,32 @@ zipWorker.onmessage = async (e) => {
       
       syncStore.addToQueue(noteData)
       emit('saved', noteData)
+      
+      // Закрываем модалку и очищаем
       closeModal()
       
       technicalStore.status = 'success'
+      
+      // Принудительно очищаем zipBlob
+      zipBlob = null
+      
     } catch (err) {
       console.error('Ошибка сохранения после Worker:', err)
       technicalStore.status = 'error'
       alert(t('NewNote.save_error'))
     } finally {
       isSaving.value = false
+      
+      // Дополнительная очистка после сохранения
+      setTimeout(() => {
+        if (window.gc) {
+          try {
+            window.gc()
+          } catch (e) {
+            // GC может быть недоступен
+          }
+        }
+      }, 200)
     }
   }
   
@@ -294,14 +402,16 @@ zipWorker.onmessage = async (e) => {
   }
 }
 
+// Регистрируем обработчик
+zipWorker.addEventListener('message', zipWorkerOnMessage)
+
 zipWorker.onerror = (error) => {
   isSaving.value = false
   technicalStore.status = 'error'
   console.error('Worker onerror:', error)
 }
 
-
-// ✅ Функция сохранения с передачей в Worker
+// Улучшенная функция сохранения с оптимизацией памяти
 const saveNote = async () => {
   if (isSaving.value) return
   
@@ -309,23 +419,28 @@ const saveNote = async () => {
     isSaving.value = true
     technicalStore.status = 'loading'
     
-    // 1. Подготовка данных для Worker
+    // 1. Подготовка данных для Worker с оптимизацией
     const mediaFilesArray = []
-    const transferables = []
     
-    for (const [name, entry] of localMediaFiles.value.entries()) {
-      // entry = { url, file }
+    // Сначала собираем все файлы, чтобы избежать итерации по Map во время передачи
+    const entries = Array.from(localMediaFiles.value.entries())
+    
+    for (const [name, entry] of entries) {
       const fileBlob = entry.file
-      if (fileBlob instanceof Blob) {
+      if (fileBlob instanceof Blob && fileBlob.size > 0) {
+        // Создаем копию только для больших файлов, чтобы не блокировать оригинал
+        let fileToSend = fileBlob
+        if (fileBlob.size > 1024 * 1024) { // > 1MB
+          fileToSend = fileBlob.slice(0, fileBlob.size, fileBlob.type)
+        }
+        
         mediaFilesArray.push({
           name,
-          file: fileBlob,
+          file: fileToSend,
           url: entry.url
         })
-        transferables.push(fileBlob)  // для передачи без копирования
       } else {
-        // на случай, если file уже отсутствует (например, после предыдущей отправки)
-        console.warn('Файл не является Blob:', name, fileBlob)
+        console.warn('Файл не является Blob или пустой:', name, fileBlob)
       }
     }
     
@@ -340,26 +455,44 @@ const saveNote = async () => {
     }
     
     // 3. Отправляем в Worker
-    zipWorker.postMessage(
-      {
-        type: 'save',
-        data: {
-          title: localTitle.value,
-          content: localContent.value,
-          mediaFiles: mediaFilesArray,
-          selectedDate: dateToSend,
-          noteId: props.note?.id,
-          createdAt: props.note?.created_at
+    zipWorker.postMessage({
+      type: 'save',
+      data: {
+        title: localTitle.value,
+        content: localContent.value,
+        mediaFiles: mediaFilesArray, // Blob'ы будут скопированы автоматически
+        selectedDate: dateToSend,
+        noteId: props.note?.id,
+        createdAt: props.note?.created_at
+      }
+    })
+    
+    // 4. Очищаем локальные URL и Map после отправки
+    // Но сохраняем копии для возможного повторного использования
+    const urlsToRevoke = []
+    for (const [name, entry] of localMediaFiles.value.entries()) {
+      if (entry.url) {
+        urlsToRevoke.push(entry.url)
+      }
+    }
+    
+    // Отложенная очистка URL
+    setTimeout(() => {
+      urlsToRevoke.forEach(url => {
+        try {
+          URL.revokeObjectURL(url)
+        } catch (e) {
+          // Игнорируем ошибки
         }
-      },
-      transferables  // передаём Blob'ы
-    )
+      })
+    }, 1000)
     
-    // 4. Сразу очищаем локальные URL и Map (Blob'ы уже перемещены)
-    cleanupBlobUrls()
-    
-    // Модалку закрываем после успешного ответа от Worker (см. onmessage)
-    // Не закрываем здесь, чтобы пользователь видел, что сохранение идёт.
+    // Очищаем Map, но не сразу, чтобы дать возможность отменить
+    setTimeout(() => {
+      if (!isSaving.value) {
+        cleanupBlobUrls()
+      }
+    }, 2000)
     
   } catch (error) {
     console.error('❌ Ошибка в saveNote:', error)
@@ -374,8 +507,10 @@ const deleteNote = async () => {
   if (!confirm(t('NewNote.delete_confirm'))) return
   
   try {
-    // ✅ Используем filenameLink из props.note
     await syncStore.deleteNote(props.note.filenameLink);
+    
+    // Очищаем перед закрытием
+    cleanupBlobUrls()
     
     closeModal()
     emit('deleted', props.note.id)
@@ -388,6 +523,9 @@ const deleteNote = async () => {
 
 const loadNoteForEditing = async (note) => {
   try {
+    // Сначала очищаем старые данные
+    cleanupBlobUrls()
+    
     localTitle.value = note.title || ''
     if (note.filenameLink) {
       const fullPath = note.filenameLink;
@@ -404,6 +542,26 @@ const loadNoteForEditing = async (note) => {
       }
       
       localContent.value = unpackedDoc.doc?.markdown || '';
+      
+      // Освобождаем память от распакованного документа
+      if (props.isEditing && unpackedDoc.doc?.assets) {
+        for (const [name, blob] of unpackedDoc.doc.assets.entries()) {
+          const url = URL.createObjectURL(blob);
+          localMediaFiles.value.set(name, { url, file: blob });
+          
+          // Безопасная замена с экранированием спецсимволов в имени файла
+          const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`assets/${escapedName}`, 'g');
+          localContent.value = localContent.value.replaceAll(regex, url);
+        }
+      }
+      
+      // Очистка оригинальной Map
+      if (unpackedDoc.doc?.assets) {
+        unpackedDoc.doc.assets.clear();
+      }
+      unpackedDoc.doc = null;
+      
     } else {
       localContent.value = ''
       localTitle.value = ''
@@ -424,11 +582,15 @@ watch(() => [props.show, props.note], async ([isOpen, note]) => {
     if (props.isEditing && note) {
       await loadNoteForEditing(note)
     } else {
+      // Очищаем при открытии новой заметки
+      cleanupBlobUrls()
       localTitle.value = ''
       localContent.value = ''
       isDirty.value = false
-      cleanupBlobUrls()
     }
+  } else {
+    // При закрытии очищаем
+    cleanupBlobUrls()
   }
 }, { immediate: true })
 </script>

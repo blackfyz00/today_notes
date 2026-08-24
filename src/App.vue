@@ -19,10 +19,7 @@ const syncStore = useSyncStore(); // ← получаем экземпляр
 
 onMounted(() => {
   console.log('📱 Приложение загружено');
-  
-  // ✅ ЗАПУСКАЕМ ПЕРИОДИЧЕСКУЮ СИНХРОНИЗАЦИЮ
-  // 5 минут = 300000 мс
-  syncStore.startPeriodicSync(300000);
+ 
 });
 
 onUnmounted(() => {

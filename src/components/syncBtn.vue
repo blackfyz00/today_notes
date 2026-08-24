@@ -56,9 +56,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed} from 'vue';
+import { computed } from 'vue';
 import { useTechnicalStore } from '@/services/TechnicalStore';
 import { useSyncStore } from '@/services/SyncStore';
+import { modalService } from '@/services/ModalService';
+import ReAuthModal from '@/views/ReauthModal.vue'; // ← Добавь правильный путь к твоему компоненту
 
 const syncStore = useSyncStore();
 const technicalStore = useTechnicalStore();
@@ -83,6 +85,7 @@ const buttonTitle = computed(() => {
   if (isSyncing.value) return props.syncingText || 'Синхронизация...';
   if (!isOnline.value) return 'Нет подключения к интернету';
   if (!isAuthorized.value) return 'Необходимо авторизоваться';
+  if (technicalStore.isTokenExpired) return 'Токен истёк, требуется повторная авторизация';
   if (pendingCount.value > 0) {
     return `${pendingCount.value} заметок ожидают синхронизации`;
   }
@@ -98,6 +101,25 @@ const emit = defineEmits<{
 const handleClick = async () => {
   if (isDisabled.value) return;
   
+  // ✅ Проверяем токен ПЕРЕД синхронизацией
+  if (technicalStore.isTokenExpired) {
+    const modalId = modalService.open(ReAuthModal, {
+      onReauthorized: async () => {
+        // После успешной реавторизации — продолжаем синхронизацию
+        modalService.close(modalId);
+        await performSync();
+      },
+      onClose: () => {
+        modalService.close(modalId);
+      }
+    });
+    return; // Прерываем, ждём реавторизации
+  }
+  
+  await performSync();
+};
+
+const performSync = async () => {
   try {
     emit('sync-start');
     
@@ -115,9 +137,8 @@ const handleClick = async () => {
     emit('error', error as Error);
     alert('Ошибка синхронизации. Проверьте подключение.');
   }
-};;
+};
 </script>
-
 <style scoped>
 
 .sync-btn {

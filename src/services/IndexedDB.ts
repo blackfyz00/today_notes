@@ -152,7 +152,6 @@ class IndexedDB implements ICloudStorage {
       console.debug(`File already in trash: ${filename}`);
       return;
     }
-  
     const db = await this.initDB();
     const parsed = this.parseFilename(filename);
     if (!parsed) {
@@ -160,126 +159,81 @@ class IndexedDB implements ICloudStorage {
       return;
     }
   
-    const { targetDate, cleanName } = parsed;
-    const oldPath = this.buildPartitionPath(targetDate, cleanName);
+    const oldPath = this.buildPartitionPath(parsed.targetDate, parsed.cleanName);
     const newPath = `${oldPath}.deleted`;
   
-    try {
-      // 1. Получаем текущий blob
-      const blob = await db.get("files", oldPath);
-      if (!blob) {
-        console.warn(`File not found: ${oldPath}`);
-        return;
-      }
-  
-      // 2. Распаковываем, чтобы получить Note
-      const { ZipPacker } = await import("@/services/ZipPacker");
-      const { note } = await ZipPacker.unpack(blob);
-  
-      // 3. Обновляем метаданные (без задержки!)
-      note.deleted = true;
-      note.updated_at = new Date().toISOString(); // реальное время
-  
-      // 4. Создаём пустой InteractiveDoc (assets не нужны)
-      const { InteractiveDoc } = await import("@/services/InteractiveDoc");
-      const emptyDoc = new InteractiveDoc();
-      emptyDoc.markdown = "";
-      emptyDoc.assets = new Map();
-  
-      // 5. Упаковываем обратно
-      const newBlob = await ZipPacker.pack(note, emptyDoc);
-  
-      // 6. Сохраняем с новым именем
-      await db.put("files", newBlob, newPath);
-  
-      // 7. Удаляем старый файл
-      await db.delete("files", oldPath);
-  
-      console.debug(`Moved file to trash with updated metadata: ${oldPath} -> ${newPath}`);
-    } catch (error) {
-      console.error(`Error soft-deleting file ${oldPath}:`, error);
-      throw error;
+    const blob = await db.get("files", oldPath);
+    if (!blob) {
+      console.warn(`File not found: ${oldPath}`);
+      return;
     }
+  
+    // Переносим blob как есть: без unpack/repack — мгновенно и без потери данных
+    await db.put("files", blob, newPath);
+    await db.delete("files", oldPath);
+    console.debug(`Moved file to trash: ${oldPath} -> ${newPath}`);
   }
   // src/services/IndexedDB.ts
   
   async getNotesForDay(day: Date): Promise<Note[]> {
     const db = await this.initDB();
-    
     const year = day.getFullYear();
     const month = String(day.getMonth() + 1).padStart(2, "0");
     const date = String(day.getDate()).padStart(2, "0");
     const dayPrefix = `${year}/${month}/${date}/`;
-  
     const range = IDBKeyRange.bound(dayPrefix, dayPrefix + "\uffff");
-    const tx = db.transaction("files", "readonly");
-    const store = tx.objectStore("files");
-    
-    const rawFiles: { fullPath: string; blob: Blob }[] = [];
-    let cursor = await store.openCursor(range);
   
-    while (cursor) {
-      const fullPath = cursor.key as string; 
-      rawFiles.push({
-        fullPath,
-        blob: cursor.value as Blob
-      });
-      cursor = await cursor.continue();
-    }
+    // Только ключи — не держим все blob'ы в памяти
+    const keys = (await db.getAllKeys("files", range)) as string[];
   
     const { ZipPacker } = await import("@/services/ZipPacker");
     const notes: Note[] = [];
   
-    for (const file of rawFiles) {
-      const isDeleted = file.fullPath.includes('.deleted');
-      const cleanPath = file.fullPath.replace(/\.deleted$/, '');
-      
-      if (isDeleted) {
-        const filename = file.fullPath.split("/").pop() || "unknown.idoc";
-        notes.push(
-          new Note({
-            id: filename.replace(".idoc", ""),
-            title: "Удаленная заметка",
-            filenameLink: cleanPath,
-            created_at: day.toISOString(),
-            deleted: true,
-            preview: '' // ✅ Добавить
-          })
-        );
-        continue; 
-      }
-      
-      try {
-        const { note: unpackedNote } = await ZipPacker.unpack(file.blob);
+    for (const fullPath of keys) {
+      const isDeleted = fullPath.includes('.deleted');
+      const cleanPath = fullPath.replace(/\.deleted$/, '');
   
-        notes.push(
-          new Note({
-            id: unpackedNote.id,
-            title: unpackedNote.title || "Без названия",
-            filenameLink: file.fullPath,
-            created_at: unpackedNote.created_at || day.toISOString(),
-            updated_at: unpackedNote.updated_at || day.toISOString(),
+      if (isDeleted) {
+        const filename = fullPath.split("/").pop() || "unknown.idoc";
+        notes.push(new Note({
+          id: filename.replace(".idoc", ""),
+          title: "Удаленная заметка",
+          filenameLink: cleanPath,
+          created_at: day.toISOString(),
+          deleted: true,
+          preview: ""
+        }));
+        continue;
+      }
+  
+      try {
+        const blob = (await db.get("files", fullPath)) as Blob;
+        const info = blob ? await ZipPacker.getNoteInfo(blob) : null;
+  
+        if (info) {
+          notes.push(new Note({
+            id: info.id,
+            title: info.title || "Без названия",
+            filenameLink: fullPath,
+            created_at: info.created_at || day.toISOString(),
+            updated_at: info.updated_at || day.toISOString(),
             deleted: false,
-            preview: unpackedNote.preview || '' // ✅ ДОБАВИТЬ!
-          })
-        );
-      } catch (unpackError) {
-        console.error(`[IndexedDB] Ошибка извлечения метаданных из ${file.fullPath}:`, unpackError);
-        
-        const filename = file.fullPath.split("/").pop() || "unknown.idoc";
-        notes.push(
-          new Note({
-            id: filename.replace(".idoc", ""),
-            title: "Заметка (Файл поврежден)",
-            filenameLink: file.fullPath,
-            created_at: day.toISOString(),
-            deleted: false,
-            preview: '' // ✅ Добавить
-          })
-        );
+            preview: info.preview || ""
+          }));
+        }
+      } catch (e) {
+        console.error(`[IndexedDB] Ошибка чтения метаданных из ${fullPath}:`, e);
+        const filename = fullPath.split("/").pop() || "unknown.idoc";
+        notes.push(new Note({
+          id: filename.replace(".idoc", ""),
+          title: "Заметка (Файл поврежден)",
+          filenameLink: fullPath,
+          created_at: day.toISOString(),
+          deleted: false,
+          preview: ""
+        }));
       }
     }
-  
     return notes;
   }
     
